@@ -14,9 +14,11 @@ Usage:
 
 import sys
 import traceback
+from pathlib import Path
 from dotenv import load_dotenv
 import os
 
+load_dotenv(Path.home() / ".env.shared")
 load_dotenv()
 
 from arcadepy import Arcade

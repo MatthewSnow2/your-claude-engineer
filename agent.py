@@ -253,6 +253,20 @@ async def run_autonomous_agent(
         result: SessionResult = SessionResult(status=SESSION_ERROR, response="uninitialized")
         try:
             async with client:
+                # Verify MCP server connections on first iteration
+                if iteration == 1:
+                    try:
+                        mcp_status = await client.get_mcp_status()
+                        servers = mcp_status.get("mcpServers", [])
+                        print("MCP Server Status:")
+                        for server in servers:
+                            name = server.get("name", "unknown")
+                            status = server.get("status", "unknown")
+                            print(f"  {name}: {status}")
+                        print()
+                    except Exception as e:
+                        print(f"  (Could not check MCP status: {e})\n")
+
                 result = await run_agent_session(client, prompt, project_dir)
         except ConnectionError as e:
             print(f"\nFailed to connect to Claude SDK: {e}")

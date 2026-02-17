@@ -16,12 +16,24 @@ import os
 from typing import Literal, TypedDict
 
 
-class ArcadeMcpConfig(TypedDict):
-    """Configuration for Arcade MCP server."""
+class ArcadeMcpHttpConfig(TypedDict):
+    """Configuration for Arcade MCP server (HTTP transport - direct)."""
 
     type: Literal["http"]
     url: str
     headers: dict[str, str]
+
+
+class ArcadeMcpStdioConfig(TypedDict):
+    """Configuration for Arcade MCP server (stdio transport via mcp-remote proxy).
+
+    Uses mcp-remote to bridge the HTTP MCP gateway to stdio transport.
+    This is required because Claude Code's Task tool only propagates
+    stdio MCP servers to subagents, not HTTP MCP servers.
+    """
+
+    command: str
+    args: list[str]
 
 
 # Gateway configuration from environment
@@ -166,12 +178,16 @@ ALL_ARCADE_TOOLS: list[str] = (
 )
 
 
-def get_arcade_mcp_config() -> ArcadeMcpConfig:
+def get_arcade_mcp_config() -> ArcadeMcpStdioConfig:
     """
-    Get the Arcade MCP server configuration.
+    Get the Arcade MCP server configuration using stdio transport.
+
+    Uses mcp-remote (npx) to bridge the Arcade HTTP MCP Gateway to stdio.
+    This is necessary because Claude Code's Task tool only propagates
+    stdio MCP servers to subagents - HTTP MCP servers are silently dropped.
 
     Returns:
-        MCP server config dict for use in ClaudeAgentOptions.mcp_servers
+        MCP stdio server config dict for use in ClaudeAgentOptions.mcp_servers
 
     Raises:
         ValueError: If required environment variables are not set
@@ -189,13 +205,19 @@ def get_arcade_mcp_config() -> ArcadeMcpConfig:
             "Then set ARCADE_GATEWAY_SLUG=your-gateway-slug in .env"
         )
 
-    return ArcadeMcpConfig(
-        type="http",
-        url=f"{ARCADE_MCP_BASE_URL}/{ARCADE_GATEWAY_SLUG}",
-        headers={
-            "Authorization": f"Bearer {ARCADE_API_KEY}",
-            "Arcade-User-ID": ARCADE_USER_ID,
-        },
+    gateway_url = f"{ARCADE_MCP_BASE_URL}/{ARCADE_GATEWAY_SLUG}"
+
+    return ArcadeMcpStdioConfig(
+        command="npx",
+        args=[
+            "-y",
+            "mcp-remote",
+            gateway_url,
+            "--header",
+            f"Authorization:Bearer {ARCADE_API_KEY}",
+            "--header",
+            f"Arcade-User-ID:{ARCADE_USER_ID}",
+        ],
     )
 
 

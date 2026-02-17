@@ -12,6 +12,7 @@ from typing import Literal, TypedDict, cast
 
 from dotenv import load_dotenv
 
+load_dotenv(Path.home() / ".env.shared")
 load_dotenv()
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, McpServerConfig
@@ -181,7 +182,8 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
     print("   - Sandbox enabled (OS-level bash isolation)")
     print(f"   - Filesystem restricted to: {project_dir.resolve()}")
     print("   - Bash commands restricted to allowlist (see security.py)")
-    print(f"   - MCP servers: playwright (browser), arcade ({arcade_config['url']})")
+    arcade_url = f"https://api.arcade.dev/mcp/{__import__('os').environ.get('ARCADE_GATEWAY_SLUG', '')}"
+    print(f"   - MCP servers: playwright (browser), arcade ({arcade_url}) [stdio via mcp-remote]")
     print()
 
     # Load orchestrator prompt as system prompt

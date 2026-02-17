@@ -23,7 +23,9 @@ from dotenv import load_dotenv
 
 from agent import run_autonomous_agent
 
-# Load environment variables from .env file
+# Load shared credentials first (~/.env.shared), then project-specific (.env)
+# python-dotenv won't override existing vars, so .env.shared loads first
+load_dotenv(Path.home() / ".env.shared")
 load_dotenv()
 
 
