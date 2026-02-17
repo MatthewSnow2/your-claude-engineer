@@ -1,0 +1,41 @@
+# Architectural Decision Records - Your Claude Engineer
+
+## ADR-001: Arcade MCP Gateway Three-Layer Fix
+**Date**: 2026-02-17
+**Status**: Accepted
+**Context**: Arcade MCP tools (Linear, GitHub, Slack) were returning "No such tool available" in both the orchestrator and subagents despite the gateway showing as "connected".
+
+**Root Cause**: Three independent issues compounded to prevent tool access.
+
+**Decision**: Apply all three fixes simultaneously. All three are required.
+
+### Layer 1: Gateway Auth Mode
+- **Problem**: Gateway was configured with "Arcade Auth" (OAuth flow), which doesn't work for server-to-server MCP connections.
+- **Fix**: Switch gateway to "Arcade Headers" mode — pass `Authorization: Bearer <ARCADE_API_KEY>` and `Arcade-User-ID: <email>` as HTTP headers.
+- **Where**: Arcade dashboard → MCP Gateways → Edit gateway → Auth mode.
+
+### Layer 2: Stdio Transport via mcp-remote
+- **Problem**: HTTP-based MCP servers do NOT propagate to Claude Code Task tool subagents. Only stdio-based servers propagate.
+- **Fix**: Use `mcp-remote` npm package as a stdio-to-HTTP bridge.
+- **Where**: `arcade_config.py` — `ArcadeMcpStdioConfig` returns `npx -y mcp-remote <gateway_url> --header "Authorization:Bearer <key>" --header "Arcade-User-ID:<email>"`.
+- **Trade-off**: Adds npx startup latency (~2-3s) per client creation, but this is acceptable for reliable subagent tool access.
+
+### Layer 3: Gateway Toolkit Configuration
+- **Problem**: Tools existing in Arcade's global catalog are NOT automatically available on a gateway. The gateway had zero Linear/GitHub/Slack tools — only default Airtable/ArcadeEngine tools.
+- **Fix**: User must explicitly add toolkits to the gateway via Arcade dashboard → MCP Gateways → Edit → "Select Tools" → add Linear, GitHub, Slack.
+- **Where**: https://api.arcade.dev/dashboard/mcp-gateways
+- **Lesson**: Always verify tools are on the gateway, not just in the catalog. REST API check: `GET /v1/tools` (gateway tools) vs `GET /v1/tools?toolkit=Linear` (catalog tools).
+
+### Verification
+- `test_mcp_tools.py` confirms all 3 toolkits work at orchestrator level.
+- Full demo run (b45987e) confirms all tools work in subagents via Task tool.
+- Tool counts: Linear (39), GitHub (46), Slack (8) = 93 total.
+
+### Debugging Notes
+- `mcp-remote-client` is misleading for debugging — it doesn't print tool names, showing empty output even when tools work. Use actual SDK test scripts instead.
+- Gateway URL: `https://api.arcade.dev/mcp/<ARCADE_GATEWAY_SLUG>`
+- Credentials stored in `~/.env.shared` (ARCADE_API_KEY, ARCADE_GATEWAY_SLUG, ARCADE_USER_ID).
+
+**Consequences**: All arcade MCP tools now work reliably in both orchestrator and subagents. The autonomous agent can create Linear projects/issues, commit to git, and send Slack notifications as part of its workflow.
+
+---
