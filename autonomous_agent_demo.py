@@ -29,16 +29,16 @@ load_dotenv(Path.home() / ".env.shared")
 load_dotenv()
 
 
-# Available Claude 4.5 models
+# Available Claude models
 AVAILABLE_MODELS: dict[str, str] = {
     "haiku": "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "opus": "claude-opus-4-5-20251101",
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-6",
 }
 
 # Default orchestrator model (can be overridden by ORCHESTRATOR_MODEL env var or --model flag)
-# Orchestrator just delegates, so haiku is sufficient and cost-effective
-DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "haiku").lower()
+# Sonnet balances cost and capability for orchestration of complex specs
+DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "sonnet").lower()
 if DEFAULT_MODEL not in AVAILABLE_MODELS:
     DEFAULT_MODEL = "haiku"
 
@@ -65,7 +65,7 @@ Examples:
   # Use opus for orchestrator (more capable but costs more)
   uv run python autonomous_agent_demo.py --project-dir my-app --model opus
 
-  # Limit iterations for testing
+  # Limit iterations for testing (default: 20)
   uv run python autonomous_agent_demo.py --project-dir my-app --max-iterations 5
 
   # Use absolute path (bypasses generations base)
@@ -96,8 +96,8 @@ Environment Variables:
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=None,
-        help="Maximum number of agent iterations (default: unlimited)",
+        default=20,
+        help="Maximum number of agent iterations (default: 20)",
     )
 
     parser.add_argument(

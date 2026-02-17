@@ -89,12 +89,12 @@ def get_orchestrator_model() -> OrchestratorModelOption:
 
     Environment variable: ORCHESTRATOR_MODEL
     Valid values: haiku, sonnet, opus (no "inherit" since orchestrator is root)
-    Default: haiku
+    Default: sonnet
     """
     value = os.environ.get("ORCHESTRATOR_MODEL", "").lower().strip()
     if _is_valid_orchestrator_model(value):
         return value  # Type checker knows this is OrchestratorModelOption via TypeGuard
-    return "haiku"
+    return "sonnet"
 
 
 def create_agent_definitions() -> dict[str, AgentDefinition]:
