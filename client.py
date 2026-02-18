@@ -248,7 +248,7 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
             max_turns=1000,
             cwd=str(project_dir.resolve()),
             settings=str(settings_file.resolve()),
-            extra_args=["--replay-user-messages"],
+            extra_args={"replay-user-messages": None},
             stderr=lambda line: print(f"[SDK stderr] {line}", flush=True),
         )
     )
