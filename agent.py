@@ -20,6 +20,7 @@ from claude_agent_sdk import (
 )
 
 from client import create_client
+from hooks import get_session_metrics, reset_metrics
 from progress import print_session_header, print_progress_summary, is_linear_initialized
 from prompts import (
     get_initializer_task,
@@ -223,6 +224,7 @@ async def run_autonomous_agent(
         print_progress_summary(project_dir)
 
     iteration: int = 0
+    reset_metrics()
 
     while True:
         iteration += 1
@@ -280,6 +282,20 @@ async def run_autonomous_agent(
             print("This may indicate an SDK bug, resource exhaustion, or configuration issue.")
             traceback.print_exc()
             result = SessionResult(status=SESSION_ERROR, response=str(e))
+
+        # Print agent metrics for this iteration
+        metrics = get_session_metrics()
+        if metrics:
+            # Count metrics from this iteration only (metrics accumulate)
+            iter_metrics = metrics  # All metrics since last reset
+            print(f"\n  Agent calls this session: {len(iter_metrics)}")
+            total_time = sum(m["duration_seconds"] for m in iter_metrics)
+            print(f"  Total agent time: {total_time:.1f}s")
+            for m in iter_metrics:
+                agent_type = m.get("agent_type", "unknown")
+                duration = m["duration_seconds"]
+                print(f"    - {agent_type}: {duration:.1f}s")
+            reset_metrics()
 
         # Handle status
         if result.status == SESSION_COMPLETE:

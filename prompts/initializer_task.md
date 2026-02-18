@@ -17,13 +17,19 @@ Delegate to `linear` agent:
 ### Step 2: Initialize Git
 Delegate to `github` agent:
 "Initialize git repository:
-1. git init
+1. FIRST: Check `echo $GITHUB_REPO` env var
 2. Create README.md with project overview
 3. Create init.sh script to start dev server
-4. Initial commit with these files + .linear_project.json"
+4. Create .gitignore
+5. git init and initial commit with these files + .linear_project.json
+6. If GITHUB_REPO is set: add remote and push
+7. Report whether remote was configured"
 
 ### Step 3: Start First Feature (if time permits)
-Get the highest-priority issue details from linear agent, then delegate to `coding` agent:
+Get the highest-priority issue details from linear agent, then:
+
+**3a. Implement:**
+Delegate to `coding` agent:
 "Implement this Linear issue:
 - ID: [from linear agent]
 - Title: [from linear agent]
@@ -36,9 +42,24 @@ Requirements:
 3. Take screenshot evidence
 4. Report: files_changed, screenshot_path, test_results"
 
-### Step 4: Commit Progress
-If coding was done, delegate to `github` agent to commit.
-Then delegate to `linear` agent to add session summary comment to META issue.
+**3b. Code Review:**
+Delegate to `code_review` agent:
+"Review these changed files: [file list from coding agent]
+Report: review_result, issues, new_learnings"
+
+⚠️ If FAIL: Ask coding agent to fix, then re-review.
+
+**3c. QA Regression Test:**
+Delegate to `qa` agent:
+"Test the new feature [name]. Take screenshots. Report PASS/FAIL."
+
+⚠️ If FAIL: Ask coding agent to fix, then re-test.
+
+### Step 4: Commit Progress (use parallel execution)
+If coding was done, delegate in SAME turn:
+- `github` agent: Commit and push changes
+- `linear` agent: Mark issue done + add session summary to META issue
+- `slack` agent: Send progress notification
 
 ## OUTPUT FILES TO CREATE
 - .linear_project.json (project state)

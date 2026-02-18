@@ -286,3 +286,32 @@ def get_coding_tools() -> list[str]:
         "mcp__playwright__browser_wait_for",
     ]
     return builtin_tools + playwright_tools
+
+
+def get_qa_tools() -> list[str]:
+    """Get tools for QA agent (read-only + Playwright for testing).
+
+    QA agent can observe and test but NOT modify code.
+    No Write or Edit tools — QA only reports findings.
+    """
+    read_only_tools = ["Read", "Glob", "Grep", "Bash"]
+    playwright_tools = [
+        "mcp__playwright__browser_navigate",
+        "mcp__playwright__browser_take_screenshot",
+        "mcp__playwright__browser_click",
+        "mcp__playwright__browser_type",
+        "mcp__playwright__browser_select_option",
+        "mcp__playwright__browser_hover",
+        "mcp__playwright__browser_snapshot",
+        "mcp__playwright__browser_wait_for",
+    ]
+    return read_only_tools + playwright_tools
+
+
+def get_code_review_tools() -> list[str]:
+    """Get tools for code review agent (read-only + Bash for linters/type checkers).
+
+    Code review agent analyzes code but does NOT modify it.
+    No Write, Edit, or Playwright tools — review is static analysis only.
+    """
+    return ["Read", "Glob", "Grep", "Bash"]

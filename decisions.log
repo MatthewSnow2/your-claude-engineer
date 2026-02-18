@@ -39,3 +39,54 @@
 **Consequences**: All arcade MCP tools now work reliably in both orchestrator and subagents. The autonomous agent can create Linear projects/issues, commit to git, and send Slack notifications as part of its workflow.
 
 ---
+
+## ADR-002: Multi-Agent Architecture Improvements (QA + Code Review + Parallel + Learning + Metrics)
+**Date**: 2026-02-18
+**Status**: Accepted
+**Context**: The 4-agent architecture (linear, coding, github, slack) ran sequentially with no QA specialization, no code review, and no SDK feature adoption.
+
+**Decision**: Expand to 6 agents, add compound learning, enable parallel execution, adopt SDK features.
+
+### New Agents
+
+**QA Agent (sonnet)**
+- Runs verification gates (pre-work) and regression tests (post-work)
+- Read-only tools: Read, Glob, Grep, Bash + all 8 Playwright tools
+- No Write/Edit — cannot modify code, only observe and test
+- Reports PASS/FAIL with screenshot evidence
+
+**Code Review Agent (sonnet)**
+- Reviews code for security, architecture, quality, compound learning
+- Read-only tools: Read, Glob, Grep, Bash (for linters/type checkers)
+- No Write/Edit/Playwright — static analysis only
+- Reads .codebase_learnings.json before review, reports new learnings after
+
+### Parallel Execution
+- Post-implementation wrap-up: github + linear + slack in SAME turn
+- Session end: linear handoff + github PR + slack summary in SAME turn
+- Project complete: linear + github + slack celebration in SAME turn
+- Never parallel: steps with data dependencies (linear→coding, coding→review, etc.)
+
+### Compound Learning System
+- `.codebase_learnings.json` persists patterns, mistakes, effective patterns, review findings
+- Code review agent reads before review, coding agent reads before implementation
+- `learnings.py` provides load/save/format functions
+
+### SDK Features (process-level)
+- `thinking={"type": "adaptive"}` — extended thinking when orchestrator needs it
+- `effort="high"` — thoroughness for multi-agent coordination
+- `enable_file_checkpointing=True` — track file changes for rollback
+- `extra_args=["--replay-user-messages"]` — required for checkpointing
+
+### A2A Metrics (hooks.py)
+- SubagentStart/Stop hooks track agent invocation timing
+- PostToolUse hook validates read-only agent persona boundaries
+- Metrics printed per iteration: call count, total time, per-agent breakdown
+
+### Trade-offs
+- More agents = more token cost per issue (offset by specialization quality)
+- Parallel execution reduces wall-clock time but adds prompt complexity
+- Compound learning file grows over time (mitigated by showing last 5 entries)
+- SDK features increase per-turn cost (thinking, effort) but improve quality
+
+**Consequences**: 6-agent architecture with QA verification gates, code review before commits, parallel wrap-up execution, cross-session learning, and observability via metrics.

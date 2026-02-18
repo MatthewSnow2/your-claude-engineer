@@ -7,6 +7,7 @@ Uses Arcade MCP Gateway for Linear + GitHub + Slack integration.
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Literal, TypedDict, cast
 
@@ -25,6 +26,7 @@ from arcade_config import (
     validate_arcade_config,
 )
 from agents.definitions import AGENT_DEFINITIONS
+from hooks import on_subagent_start, on_subagent_stop, validate_agent_output
 from security import bash_security_hook
 
 
@@ -168,6 +170,16 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
 
     Execution: Permissions checked first, then hooks run, finally sandbox executes.
     """
+    # Remove ANTHROPIC_API_KEY from process environment so the Claude CLI
+    # subprocess uses Max subscription auth (from `claude login`) instead of
+    # API billing. The key gets loaded from ~/.env.shared by load_dotenv().
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+
+    # Remove CLAUDECODE env var so the CLI subprocess doesn't refuse to start
+    # with "cannot be launched inside another Claude Code session". This var
+    # is set when running inside a Claude Code session (e.g., during development).
+    os.environ.pop("CLAUDECODE", None)
+
     # Validate Arcade configuration
     validate_arcade_config()
 
@@ -182,7 +194,7 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
     print("   - Sandbox enabled (OS-level bash isolation)")
     print(f"   - Filesystem restricted to: {project_dir.resolve()}")
     print("   - Bash commands restricted to allowlist (see security.py)")
-    arcade_url = f"https://api.arcade.dev/mcp/{__import__('os').environ.get('ARCADE_GATEWAY_SLUG', '')}"
+    arcade_url = f"https://api.arcade.dev/mcp/{os.environ.get('ARCADE_GATEWAY_SLUG', '')}"
     print(f"   - MCP servers: playwright (browser), arcade ({arcade_url}) [stdio via mcp-remote]")
     print()
 
@@ -193,6 +205,9 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
         options=ClaudeAgentOptions(
             model=model,
             system_prompt=orchestrator_prompt,
+            thinking={"type": "adaptive"},
+            effort="high",
+            enable_file_checkpointing=True,
             allowed_tools=[
                 *BUILTIN_TOOLS,
                 *PLAYWRIGHT_TOOLS,
@@ -212,10 +227,28 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
                         hooks=[cast(HookCallback, bash_security_hook)],
                     ),
                 ],
+                "PostToolUse": [
+                    HookMatcher(
+                        matcher="Task",
+                        hooks=[cast(HookCallback, validate_agent_output)],
+                    ),
+                ],
+                "SubagentStart": [
+                    HookMatcher(
+                        hooks=[cast(HookCallback, on_subagent_start)],
+                    ),
+                ],
+                "SubagentStop": [
+                    HookMatcher(
+                        hooks=[cast(HookCallback, on_subagent_stop)],
+                    ),
+                ],
             },
             agents=AGENT_DEFINITIONS,
             max_turns=1000,
             cwd=str(project_dir.resolve()),
             settings=str(settings_file.resolve()),
+            extra_args=["--replay-user-messages"],
+            stderr=lambda line: print(f"[SDK stderr] {line}", flush=True),
         )
     )

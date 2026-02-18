@@ -17,6 +17,8 @@ from arcade_config import (
     get_github_tools,
     get_slack_tools,
     get_coding_tools,
+    get_qa_tools,
+    get_code_review_tools,
 )
 
 # File tools needed by multiple agents
@@ -36,6 +38,8 @@ DEFAULT_MODELS: Final[dict[str, ModelOption]] = {
     "coding": "sonnet",
     "github": "haiku",
     "slack": "haiku",
+    "qa": "sonnet",
+    "code_review": "sonnet",
 }
 
 
@@ -106,28 +110,65 @@ def create_agent_definitions() -> dict[str, AgentDefinition]:
     """
     return {
         "linear": AgentDefinition(
-            description="Manages Linear issues, project status, and session handoff. Use for any Linear operations.",
+            description=(
+                "Manages Linear issues, project status, and session handoff via META issue. "
+                "Use when you need to read or update Linear data. "
+                "Do NOT use for code, git, or Slack operations."
+            ),
             prompt=_load_prompt("linear_agent_prompt"),
             tools=get_linear_tools() + FILE_TOOLS,
             model=_get_model("linear"),
         ),
         "github": AgentDefinition(
-            description="Handles Git commits, branches, and GitHub PRs. Use for version control operations.",
+            description=(
+                "Handles Git commits, branches, and GitHub PRs. "
+                "Use when you need to commit, push, or create PRs. "
+                "Do NOT use for writing code (use coding agent) or notifications."
+            ),
             prompt=_load_prompt("github_agent_prompt"),
             tools=get_github_tools() + FILE_TOOLS + ["Bash"],
             model=_get_model("github"),
         ),
         "slack": AgentDefinition(
-            description="Sends Slack notifications to keep users informed. Use for progress updates.",
+            description=(
+                "Sends Slack notifications to keep users informed. "
+                "Use ONLY for sending Slack messages. Lightweight and fast."
+            ),
             prompt=_load_prompt("slack_agent_prompt"),
             tools=get_slack_tools() + FILE_TOOLS,
             model=_get_model("slack"),
         ),
         "coding": AgentDefinition(
-            description="Writes and tests code. Use when implementing features or fixing bugs.",
+            description=(
+                "Writes and tests code using Playwright browser automation. "
+                "Use when implementing features, fixing bugs, or debugging. "
+                "Do NOT use for verification-only tasks (use qa), "
+                "or review-only tasks (use code_review)."
+            ),
             prompt=_load_prompt("coding_agent_prompt"),
             tools=get_coding_tools(),
             model=_get_model("coding"),
+        ),
+        "qa": AgentDefinition(
+            description=(
+                "Runs verification tests and regression checks using Playwright browser automation. "
+                "Use BEFORE new feature work (verification gate) and AFTER implementation (regression test). "
+                "Reports PASS/FAIL with screenshot evidence. Does NOT write code."
+            ),
+            prompt=_load_prompt("qa_agent_prompt"),
+            tools=get_qa_tools(),
+            model=_get_model("qa"),
+        ),
+        "code_review": AgentDefinition(
+            description=(
+                "Reviews code for security vulnerabilities, architecture patterns, and quality issues. "
+                "Use AFTER implementation and BEFORE committing to catch problems early. "
+                "Reads .codebase_learnings.json to apply past learnings and avoid repeated mistakes. "
+                "Reports findings with severity levels. Does NOT modify code."
+            ),
+            prompt=_load_prompt("code_review_agent_prompt"),
+            tools=get_code_review_tools(),
+            model=_get_model("code_review"),
         ),
     }
 
@@ -140,3 +181,5 @@ LINEAR_AGENT = AGENT_DEFINITIONS["linear"]
 GITHUB_AGENT = AGENT_DEFINITIONS["github"]
 SLACK_AGENT = AGENT_DEFINITIONS["slack"]
 CODING_AGENT = AGENT_DEFINITIONS["coding"]
+QA_AGENT = AGENT_DEFINITIONS["qa"]
+CODE_REVIEW_AGENT = AGENT_DEFINITIONS["code_review"]

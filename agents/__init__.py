@@ -14,6 +14,8 @@ from agents.definitions import (
     GITHUB_AGENT,
     SLACK_AGENT,
     CODING_AGENT,
+    QA_AGENT,
+    CODE_REVIEW_AGENT,
 )
 
 if TYPE_CHECKING:
@@ -26,6 +28,8 @@ __all__ = [
     "GITHUB_AGENT",
     "SLACK_AGENT",
     "CODING_AGENT",
+    "QA_AGENT",
+    "CODE_REVIEW_AGENT",
     "run_orchestrated_session",
 ]
 
