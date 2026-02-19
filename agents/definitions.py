@@ -98,7 +98,7 @@ def get_orchestrator_model() -> OrchestratorModelOption:
     value = os.environ.get("ORCHESTRATOR_MODEL", "").lower().strip()
     if _is_valid_orchestrator_model(value):
         return value  # Type checker knows this is OrchestratorModelOption via TypeGuard
-    return "sonnet"
+    return "haiku"
 
 
 def create_agent_definitions() -> dict[str, AgentDefinition]:

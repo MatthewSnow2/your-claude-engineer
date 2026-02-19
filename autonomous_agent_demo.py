@@ -11,6 +11,7 @@ Example Usage:
     uv run python autonomous_agent_demo.py --project-dir my-app
     uv run python autonomous_agent_demo.py --project-dir my-app --max-iterations 5
     uv run python autonomous_agent_demo.py --generations-base ~/projects/ai --project-dir my-app
+    uv run python autonomous_agent_demo.py --project-dir my-app --parallel --max-workers 3
 """
 
 import argparse
@@ -37,8 +38,8 @@ AVAILABLE_MODELS: dict[str, str] = {
 }
 
 # Default orchestrator model (can be overridden by ORCHESTRATOR_MODEL env var or --model flag)
-# Sonnet balances cost and capability for orchestration of complex specs
-DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "sonnet").lower()
+# Haiku is sufficient for orchestration (routing/sequencing) — coding quality comes from the Coding Agent (Sonnet)
+DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "haiku").lower()
 if DEFAULT_MODEL not in AVAILABLE_MODELS:
     DEFAULT_MODEL = "haiku"
 
@@ -70,6 +71,10 @@ Examples:
 
   # Use absolute path (bypasses generations base)
   uv run python autonomous_agent_demo.py --project-dir /absolute/path/to/project
+
+  # Parallel mode: run independent issues concurrently
+  uv run python autonomous_agent_demo.py --project-dir my-app --parallel
+  uv run python autonomous_agent_demo.py --project-dir my-app --parallel --max-workers 3
 
 Environment Variables:
   ARCADE_API_KEY             Arcade API key for Linear integration (required)
@@ -106,6 +111,22 @@ Environment Variables:
         choices=list(AVAILABLE_MODELS.keys()),
         default=DEFAULT_MODEL,
         help=f"Model for orchestrator (sub-agents have fixed models: coding=sonnet, others=haiku) (default: {DEFAULT_MODEL})",
+    )
+
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        default=False,
+        help="Enable parallel execution mode: spawn concurrent workers for independent issues. "
+        "Requires an already-initialized project (or will run init first).",
+    )
+
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=2,
+        help="Maximum concurrent worker processes in parallel mode (default: 2, max: 5). "
+        "Each worker uses ~400MB RAM. Ignored without --parallel.",
     )
 
     return parser.parse_args()
@@ -156,15 +177,27 @@ def main() -> int:
     # Resolve model short name to full model ID
     model_id: str = AVAILABLE_MODELS[args.model]
 
-    # Run the agent
+    # Run the agent (parallel or sequential mode)
     try:
-        asyncio.run(
-            run_autonomous_agent(
-                project_dir=project_dir,
-                model=model_id,
-                max_iterations=args.max_iterations,
+        if args.parallel:
+            from parallel import run_parallel_agent
+
+            asyncio.run(
+                run_parallel_agent(
+                    project_dir=project_dir,
+                    model=model_id,
+                    max_workers=args.max_workers,
+                    max_iterations=args.max_iterations,
+                )
             )
-        )
+        else:
+            asyncio.run(
+                run_autonomous_agent(
+                    project_dir=project_dir,
+                    model=model_id,
+                    max_iterations=args.max_iterations,
+                )
+            )
         return 0
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
