@@ -57,6 +57,7 @@ from progress import (
     is_linear_initialized,
     print_progress_summary,
 )
+from linear_status import check_issue_statuses, print_status_summary
 from agent import run_autonomous_agent
 
 
@@ -376,15 +377,29 @@ async def run_parallel_agent(
     # Build issue lookup
     issue_lookup: dict[str, dict] = {issue["id"]: issue for issue in issues}
 
+    # Phase 2b: Check Linear for current issue statuses
+    # This makes --parallel resumable: already-Done issues are skipped
+    all_identifiers = [issue["id"] for issue in issues]
+    completed, cancelled, status_map = check_issue_statuses(all_identifiers)
+    print_status_summary(status_map, completed, cancelled)
+
+    # Also skip cancelled issues (treat as completed for scheduling purposes)
+    completed = completed | cancelled
+
     # Initialize progress tracking
+    remaining_count = plan.total_issues - len(completed)
     progress = ParallelProgress(
         total_issues=plan.total_issues,
+        completed_issues=set(completed),
         total_tiers=len(plan.tiers),
     )
 
-    # Track completed issues (could be pre-populated from Linear status check)
-    completed: set[str] = set()
     requeued: list[dict] = []  # Issues to retry sequentially after merge conflicts
+
+    if remaining_count == 0:
+        print("All issues are already Done in Linear!")
+        print("Run without --parallel to finalize project completion.")
+        return
 
     # Phase 3: Execute tiers
     for tier in plan.tiers:
