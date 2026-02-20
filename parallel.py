@@ -58,6 +58,7 @@ from progress import (
     print_progress_summary,
 )
 from linear_status import check_issue_statuses, print_status_summary
+from slack_notify import SlackNotifier
 from agent import run_autonomous_agent
 
 
@@ -396,10 +397,21 @@ async def run_parallel_agent(
 
     requeued: list[dict] = []  # Issues to retry sequentially after merge conflicts
 
+    # Initialize Slack notifier
+    notifier = SlackNotifier()
+
     if remaining_count == 0:
         print("All issues are already Done in Linear!")
         print("Run without --parallel to finalize project completion.")
         return
+
+    # Notify Slack that parallel execution is starting
+    notifier.send_parallel_start(
+        project_name=project_dir.name,
+        total_issues=plan.total_issues,
+        remaining=remaining_count,
+        max_workers=max_workers,
+    )
 
     # Phase 3: Execute tiers
     for tier in plan.tiers:
@@ -465,6 +477,14 @@ async def run_parallel_agent(
         print_tier_summary(tier_progress, merge_results)
         progress.tiers_completed += 1
 
+        # Slack: notify tier completion
+        notifier.send_tier_complete(
+            tier_num=current_tier.tier,
+            description=current_tier.description,
+            completed=sorted(tier_progress.completed_ids),
+            failed=sorted(tier_progress.failed_ids),
+        )
+
     # Phase 5: Handle re-queued issues (sequential retry)
     if requeued:
         print("\n" + "=" * 70)
@@ -498,6 +518,16 @@ async def run_parallel_agent(
     # Final summary
     print_parallel_summary(progress)
     print_progress_summary(project_dir)
+
+    # Slack: send final run summary
+    skipped_count = len(completed) - len(progress.completed_issues - set(completed))
+    notifier.send_run_summary(
+        project_name=project_dir.name,
+        completed=len(progress.completed_issues),
+        failed=len(progress.failed_issues),
+        skipped=plan.total_issues - remaining_count,
+        total=plan.total_issues,
+    )
 
     # Check if all done
     if len(completed) >= plan.total_issues:
