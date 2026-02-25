@@ -178,16 +178,19 @@ ALL_ARCADE_TOOLS: list[str] = (
 )
 
 
-def get_arcade_mcp_config() -> ArcadeMcpStdioConfig:
+def get_arcade_mcp_config() -> ArcadeMcpHttpConfig:
     """
-    Get the Arcade MCP server configuration using stdio transport.
+    Get the Arcade MCP server configuration using HTTP transport.
 
-    Uses mcp-remote (npx) to bridge the Arcade HTTP MCP Gateway to stdio.
-    This is necessary because Claude Code's Task tool only propagates
-    stdio MCP servers to subagents - HTTP MCP servers are silently dropped.
+    Connects directly to the Arcade MCP Gateway using the SDK's native
+    HTTP MCP transport. No mcp-remote bridge needed.
+
+    Note: HTTP MCP servers may not propagate to subagents via the Task tool.
+    This is acceptable because only the orchestrator needs Arcade tools
+    (Linear, GitHub, Slack) — coding subagents use file/bash/playwright only.
 
     Returns:
-        MCP stdio server config dict for use in ClaudeAgentOptions.mcp_servers
+        MCP HTTP server config dict for use in ClaudeAgentOptions.mcp_servers
 
     Raises:
         ValueError: If required environment variables are not set
@@ -207,17 +210,13 @@ def get_arcade_mcp_config() -> ArcadeMcpStdioConfig:
 
     gateway_url = f"{ARCADE_MCP_BASE_URL}/{ARCADE_GATEWAY_SLUG}"
 
-    return ArcadeMcpStdioConfig(
-        command="npx",
-        args=[
-            "-y",
-            "mcp-remote",
-            gateway_url,
-            "--header",
-            f"Authorization:Bearer {ARCADE_API_KEY}",
-            "--header",
-            f"Arcade-User-ID:{ARCADE_USER_ID}",
-        ],
+    return ArcadeMcpHttpConfig(
+        type="http",
+        url=gateway_url,
+        headers={
+            "Authorization": f"Bearer {ARCADE_API_KEY}",
+            "Arcade-User-ID": ARCADE_USER_ID,
+        },
     )
 
 

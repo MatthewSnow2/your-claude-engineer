@@ -205,8 +205,6 @@ def create_client(project_dir: Path, model: str) -> ClaudeSDKClient:
         options=ClaudeAgentOptions(
             model=model,
             system_prompt=orchestrator_prompt,
-            thinking={"type": "adaptive"},
-            effort="high",
             enable_file_checkpointing=True,
             allowed_tools=[
                 *BUILTIN_TOOLS,
