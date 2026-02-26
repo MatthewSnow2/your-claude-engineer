@@ -1,0 +1,532 @@
+# Metroplex - App Specification
+
+## Overview
+
+Metroplex is the Level 5 autonomy layer for the ST Metro ecosystem. It closes all three human gates in the feedback loop — idea triage, build orchestration, and persona patch application — enabling fully autonomous operation. It is a CLI-only Python application that reads upstream SQLite databases (IdeaForge, Ultra-Magnus, ST Factory), makes autonomous decisions against configurable thresholds, and drives builds via subprocess calls to queue_runner.py.
+
+No web UI. No API server. Pure CLI with structured audit logging.
+
+---
+
+## Tech Stack
+
+- **Language**: Python 3.12
+- **CLI**: argparse (stdlib)
+- **Database**: SQLite3 (read upstream DBs in `?mode=ro`, own state DB `metroplex.db`)
+- **Data Models**: Pydantic v2
+- **Templating**: Jinja2 (app spec generation)
+- **YAML**: PyYAML (persona patch operations)
+- **Subprocess**: subprocess (stdlib) for queue_runner.py and git
+- **Package Manager**: pip (requirements.txt)
+
+---
+
+## Environment Setup
+
+### Prerequisites
+- Python 3.12+
+- Access to upstream SQLite databases (IdeaForge, Ultra-Magnus, ST Factory)
+- Access to yce-harness directory (for queue_runner.py)
+- Git installed (for persona patch operations)
+
+### Configuration
+
+All configuration lives in `config.py` with environment variable overrides and sensible defaults.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `METROPLEX_IDEAFORGE_DB` | No | `/home/apexaipc/projects/ideaforge/data/ideaforge.db` | IdeaForge database path |
+| `METROPLEX_UM_DB` | No | `/home/apexaipc/projects/ultra-magnus/idea-factory/data/idea-factory.db` | Ultra-Magnus database path |
+| `METROPLEX_STFACTORY_DB` | No | `/home/apexaipc/projects/st-factory/data/persona_metrics.db` | ST Factory database path |
+| `METROPLEX_YCE_DIR` | No | `/home/apexaipc/projects/yce-harness` | yce-harness directory (where queue_runner.py lives) |
+| `METROPLEX_ACADEMY_REPO` | No | `m2ai-portfolio/agent-persona-academy` | GitHub repo for persona YAML files |
+| `METROPLEX_BUILD_MODEL` | No | `opus` | Model passed to queue_runner.py for builds |
+| `METROPLEX_APPROVE_THRESHOLD` | No | `70` | Triage score >= this → auto-approve (0-100 scale) |
+| `METROPLEX_REJECT_THRESHOLD` | No | `40` | Triage score < this → auto-reject (0-100 scale) |
+| `METROPLEX_MAX_APPROVE_PER_CYCLE` | No | `3` | Maximum ideas approved per cycle |
+| `METROPLEX_MAX_PATCHES_PER_CYCLE` | No | `5` | Maximum patches applied per cycle |
+| `METROPLEX_CIRCUIT_BREAKER_THRESHOLD` | No | `3` | Consecutive failures before gate halts |
+
+---
+
+## Architecture
+
+```
+                     ┌──────────────────────────────────────────────┐
+                     │              Metroplex CLI                    │
+                     │          metroplex.py (argparse)              │
+                     ├──────────────────────────────────────────────┤
+                     │            orchestrator.py                    │
+                     │    Cycle lifecycle + gate sequencing          │
+                     │    triage → build → patch → repeat            │
+                     ├──────────┬──────────────┬────────────────────┤
+                     │  Gate 1  │    Gate 2     │      Gate 3        │
+                     │ triage.py│   build.py    │    patcher.py      │
+                     │ Score &  │ Spec gen +    │ YAML patches via   │
+                     │ decide   │ queue_runner  │ git subprocess     │
+                     ├──────────┴──────────────┴────────────────────┤
+                     │              safety.py                        │
+                     │    Circuit breaker, caps, graceful shutdown   │
+                     ├──────────────────────────────────────────────┤
+                     │          readers/ (read-only)                 │
+                     │  ideaforge_reader  stfactory_reader  um_reader│
+                     └──────┬──────────────┬───────────────┬────────┘
+                            │              │               │
+                     ┌──────▼──────┐ ┌─────▼─────┐ ┌──────▼──────┐
+                     │  IdeaForge  │ │ ST Factory │ │Ultra-Magnus │
+                     │ ideaforge.db│ │persona_    │ │idea-factory │
+                     │  (read)     │ │metrics.db  │ │   .db       │
+                     │             │ │(read+write │ │  (read)     │
+                     │             │ │ patches    │ │             │
+                     │             │ │ status)    │ │             │
+                     └─────────────┘ └───────────┘ └─────────────┘
+```
+
+Data flow:
+1. **Gate 1 (Triage)**: Reads IdeaForge `ideas` table → scores ideas → writes decisions to `metroplex.db`
+2. **Gate 2 (Build)**: Reads approved ideas → generates app spec via Jinja2 template → calls `queue_runner.py add` + `queue_runner.py start` via subprocess
+3. **Gate 3 (Patch)**: Reads ST Factory `persona_patches` with `status='proposed'` → clones/pulls Academy repo → applies YAML patches → commits + pushes → updates `persona_patches.status` to `applied`
+
+---
+
+## Core Features
+
+### Feature 1: Project Foundation
+**Description**: Config module, Pydantic models, state database, and audit logger. This is the scaffolding that all other features depend on.
+
+**Requirements**:
+- `config.py`: Dataclass with all environment variables from the table above. Each has a default. Load from `os.environ` with fallback to defaults. Include a `validate()` method that checks all DB paths exist (warning if not, not fatal — enables dry-run without real DBs).
+- `models.py`: Pydantic v2 models:
+  - `TriageDecision`: idea_id (int), title (str), weighted_score (float), scaled_score (float), decision (Literal["approve", "reject", "defer"]), reason (str), decided_at (datetime)
+  - `BuildJob`: idea_id (int), title (str), spec_path (str), queue_job_id (str), status (Literal["queued", "started", "completed", "failed"]), queued_at (datetime)
+  - `PatchApplication`: patch_id (str), persona_id (str), from_version (str | None), to_version (str | None), status (Literal["applied", "failed", "skipped"]), reason (str), applied_at (datetime)
+  - `CycleResult`: cycle_id (str), started_at (datetime), completed_at (datetime | None), triage_count (int), build_count (int), patch_count (int), errors (list[str])
+  - `GateStatus`: gate (Literal["triage", "build", "patch"]), consecutive_failures (int), halted (bool), last_error (str | None)
+- `db.py`: State database manager for `metroplex.db` (stored in `data/` directory). Schema:
+  - `triage_decisions` table matching TriageDecision fields
+  - `build_jobs` table matching BuildJob fields
+  - `patch_applications` table matching PatchApplication fields
+  - `cycles` table matching CycleResult fields
+  - `gate_status` table matching GateStatus fields
+  - Methods: `init_db()`, `record_triage_decision()`, `record_build_job()`, `record_patch_application()`, `start_cycle()`, `end_cycle()`, `get_gate_status()`, `update_gate_status()`
+- `audit.py`: Structured audit logger that writes JSON lines to `data/decisions.log`. Each line has: `timestamp`, `gate`, `action`, `details` (dict). Methods: `log_decision()`, `log_error()`, `log_cycle_start()`, `log_cycle_end()`.
+- `init.sh`: Shell script that creates venv, installs requirements, creates `data/` directory.
+
+**Test Steps**:
+1. Run `python -c "from config import Config; c = Config(); print(c)"` — prints all defaults
+2. Run `python -c "from db import StateDB; db = StateDB(':memory:'); db.init_db(); print('OK')"` — creates tables in memory
+3. Run `python -c "from models import TriageDecision; print(TriageDecision.model_json_schema())"` — prints valid JSON schema
+4. Run `python -c "from audit import AuditLogger; a = AuditLogger('/tmp/test_audit.log'); a.log_decision('triage', 'approve', {'idea_id': 1})"` — writes one JSON line to file
+
+---
+
+### Feature 2: External DB Readers
+**Description**: Read-only SQLite readers for the three upstream databases. Each reader connects with `?mode=ro` URI and provides typed query methods.
+
+**Requirements**:
+- `readers/ideaforge_reader.py`:
+  - `IdeaForgeReader` class takes db_path in constructor
+  - `get_unprocessed_ideas() -> list[dict]`: Returns ideas where `status = 'scored'` and `weighted_score IS NOT NULL`. Each dict has: id, title, description, problem_statement, target_audience, weighted_score, opportunity_score, problem_score, feasibility_score, why_now_score, competition_score, artifact_type, signal_count, status.
+  - `get_idea_by_id(idea_id: int) -> dict | None`
+  - Opens connection with `sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)`
+  - Closes connection in `__del__` or use context manager pattern
+- `readers/stfactory_reader.py`:
+  - `STFactoryReader` class takes db_path in constructor
+  - `get_proposed_patches() -> list[dict]`: Returns persona_patches where `status = 'proposed'`. Each dict has: id, patch_id, persona_id, rationale, from_version, to_version, raw_json (parsed from JSON string).
+  - `get_pending_recommendations() -> list[dict]`: Returns improvement_recommendations where `status = 'pending'`.
+  - `update_patch_status(patch_id: str, new_status: str) -> None`: This is the ONE write operation — updates `persona_patches.status`. Opens a separate writable connection for this.
+  - `get_outcome_records(limit: int = 50) -> list[dict]`: Returns recent outcome_records ordered by emitted_at DESC.
+- `readers/um_reader.py`:
+  - `UMReader` class takes db_path in constructor
+  - `get_idea_pipeline_status(idea_id: str) -> dict | None`: Returns idea with current_stage, current_status.
+  - `get_recent_builds(limit: int = 10) -> list[dict]`: Returns recent build_results joined with ideas.
+  - `get_evaluation_result(idea_id: str) -> dict | None`: Returns evaluation_results for the idea.
+
+**Test Steps**:
+1. Create an in-memory SQLite DB with IdeaForge schema, insert 3 test ideas with scores, verify `get_unprocessed_ideas()` returns them sorted by weighted_score DESC
+2. Create an in-memory SQLite DB with ST Factory schema, insert 2 proposed patches, verify `get_proposed_patches()` returns them
+3. Create an in-memory SQLite DB with UM schema, insert a build result, verify `get_recent_builds()` returns it
+4. Verify `update_patch_status()` changes the status column in ST Factory DB
+5. Verify all readers raise `FileNotFoundError` if DB path doesn't exist (not silently fail)
+
+---
+
+### Feature 3: Gate 1 — Idea Triage
+**Description**: Reads scored ideas from IdeaForge, scales scores from 0-10 to 0-100, applies threshold-based decisions (approve/reject/defer), and records decisions.
+
+**Requirements**:
+- `gates/triage.py`:
+  - `TriageGate` class takes config, state_db, ideaforge_reader, audit_logger
+  - `run(dry_run: bool = False) -> list[TriageDecision]`:
+    1. Call `ideaforge_reader.get_unprocessed_ideas()`
+    2. For each idea, scale `weighted_score` from 0-10 range to 0-100: `scaled = weighted_score * 10`
+    3. Apply thresholds:
+       - `scaled >= config.approve_threshold` → "approve"
+       - `scaled < config.reject_threshold` → "reject"
+       - Otherwise → "defer"
+    4. Enforce per-cycle cap: max `config.max_approve_per_cycle` approvals. If cap reached, remaining qualifying ideas get "defer" with reason "per-cycle cap reached"
+    5. If `dry_run`: print decisions to stdout, do not write to DB
+    6. If not dry_run: record each decision in `state_db` and `audit_logger`
+    7. Return list of TriageDecision objects
+  - `_format_decision(idea: dict, scaled_score: float, decision: str) -> str`: Human-readable single-line summary for CLI output
+
+**Test Steps**:
+1. Feed 5 ideas with scores [9.0, 7.5, 5.0, 3.5, 2.0] → expect decisions [approve, approve, defer, reject, reject] with default thresholds (70/40)
+2. Feed 5 ideas all scoring 8.0 → expect first 3 approved, remaining 2 deferred (per-cycle cap of 3)
+3. Feed 0 ideas → expect empty list, no errors
+4. Verify dry_run=True does NOT write to state_db
+5. Verify dry_run=False DOES write to state_db and audit log
+
+---
+
+### Feature 4: Gate 2 — Spec Generation
+**Description**: Takes approved ideas and generates yce-harness app spec files from a Jinja2 template, populated with idea data.
+
+**Requirements**:
+- `gates/build.py` (spec generation portion):
+  - `SpecGenerator` class takes config, template_dir (Path to `spec_templates/`)
+  - `generate_spec(idea: dict, output_dir: Path) -> Path`:
+    1. Load `spec_templates/app_spec_template.md` as Jinja2 template
+    2. Render with idea data: title, description, problem_statement, target_audience, artifact_type, tech_stack hints
+    3. Write rendered spec to `output_dir / f"app_spec_{idea['id']}.txt"`
+    4. Return the output path
+  - Template variables: `{{ title }}`, `{{ description }}`, `{{ problem_statement }}`, `{{ target_audience }}`, `{{ artifact_type }}`, `{{ tech_stack }}`
+- `spec_templates/app_spec_template.md`: Jinja2 template following yce-harness APP_SPEC_TEMPLATE.md format. Must produce a valid app spec with:
+  - Overview section from idea description
+  - Tech stack section (Python defaults, adjusted by artifact_type)
+  - 3-5 auto-generated features based on artifact_type:
+    - "tool" → CLI tool features
+    - "agent" → agent framework features
+    - "product" → full-stack features
+  - File structure section
+  - Success criteria section
+  - init.sh setup script
+  - The template should be well-structured enough that yce-harness can build from it
+
+**Test Steps**:
+1. Generate a spec for a "tool" type idea → verify output file contains CLI-appropriate structure
+2. Generate a spec for an "agent" type idea → verify output file contains agent-appropriate structure
+3. Generate a spec for a "product" type idea → verify output file contains full-stack structure
+4. Verify generated spec contains the idea's title and description verbatim
+5. Verify output file is valid text (no Jinja2 syntax errors, no `{{ }}` remaining)
+
+---
+
+### Feature 5: Gate 2 — Build Orchestration
+**Description**: Queues approved ideas for build via queue_runner.py subprocess calls. Manages the lifecycle: add job → start queue → check status.
+
+**Requirements**:
+- `gates/build.py` (orchestration portion):
+  - `BuildOrchestrator` class takes config, state_db, spec_generator, audit_logger
+  - `queue_build(idea: dict, spec_path: Path, dry_run: bool = False) -> BuildJob | None`:
+    1. Build command: `[sys.executable, queue_runner_path, "add", str(spec_path), "--id", job_id, "--model", config.build_model]` where `queue_runner_path = config.yce_dir / "queue_runner.py"` and `job_id = f"metroplex-{idea['id']}"`
+    2. If dry_run: print command, return None
+    3. Run subprocess with `capture_output=True, text=True, timeout=30`
+    4. Check returncode. If 0: record BuildJob with status="queued". If non-zero: record as "failed", log error.
+    5. Return BuildJob
+  - `start_queue(dry_run: bool = False) -> bool`:
+    1. Build command: `[sys.executable, queue_runner_path, "start"]`
+    2. If dry_run: print command, return True
+    3. Run subprocess (this is long-running — use `timeout=None` or very large timeout)
+    4. Return True if returncode==0
+  - `check_status() -> dict`:
+    1. Run `[sys.executable, queue_runner_path, "status", "--json"]`
+    2. Parse JSON output
+    3. Return parsed dict
+  - `run(approved_ideas: list[dict], dry_run: bool = False) -> list[BuildJob]`:
+    1. For each approved idea: generate spec, queue build
+    2. If not dry_run and at least one job queued: start queue
+    3. Return list of BuildJob results
+
+**Test Steps**:
+1. Mock subprocess.run, call `queue_build()` → verify correct command constructed with idea ID and model
+2. Mock subprocess.run returning exit code 1 → verify BuildJob has status="failed"
+3. Verify dry_run=True prints command but does not call subprocess.run
+4. Call `check_status()` with mocked subprocess returning JSON → verify parsed correctly
+5. Verify job_id format is `metroplex-{idea_id}`
+
+---
+
+### Feature 6: Gate 3 — Patch Auto-Apply
+**Description**: Reads proposed persona patches from ST Factory, clones/pulls the Academy repo, applies YAML modifications, commits, pushes, and updates patch status.
+
+**Requirements**:
+- `gates/patcher.py`:
+  - `PatchGate` class takes config, state_db, stfactory_reader, audit_logger
+  - `run(dry_run: bool = False) -> list[PatchApplication]`:
+    1. Call `stfactory_reader.get_proposed_patches()`
+    2. Enforce per-cycle cap: max `config.max_patches_per_cycle`
+    3. For each patch:
+       a. Parse `raw_json` to get patch operations (the raw_json contains the full PersonaUpgradePatch with `operations` field — a list of JSON Pointer style ops)
+       b. Determine target file: `personas/{persona_id}.yaml`
+       c. If dry_run: print what would change, skip actual file ops
+       d. If not dry_run:
+          - Ensure local clone exists: `git clone https://github.com/{config.academy_repo}.git {work_dir}` or `git -C {work_dir} pull`
+          - Load the persona YAML file
+          - Apply each operation (add/replace/remove fields per JSON Pointer path)
+          - Write modified YAML back
+          - `git -C {work_dir} add .`
+          - `git -C {work_dir} commit -m "metroplex: apply patch {patch_id} to {persona_id}"`
+          - `git -C {work_dir} push`
+          - Call `stfactory_reader.update_patch_status(patch_id, 'applied')`
+    4. Record PatchApplication in state_db and audit_logger
+    5. If any git operation fails: record status="failed", continue to next patch
+    6. Return list of PatchApplication results
+  - `_apply_yaml_patch(yaml_data: dict, operations: list[dict]) -> dict`:
+    - Each operation has: `op` (add|replace|remove), `path` (JSON Pointer string like "/voice/tone"), `value` (new value, for add/replace)
+    - Navigate YAML dict using path segments, apply operation
+    - Return modified dict
+  - `_ensure_repo(work_dir: Path) -> bool`:
+    - If work_dir exists and has .git: `git pull`
+    - Else: `git clone`
+    - Return True if successful
+
+**Test Steps**:
+1. Create a test YAML dict, apply an "add" operation at path "/voice/tone" with value "concise" → verify key added
+2. Apply a "replace" operation at path "/voice/tone" with value "formal" → verify key changed
+3. Apply a "remove" operation at path "/voice/tone" → verify key removed
+4. Verify per-cycle cap: feed 7 patches → only first 5 processed
+5. Verify dry_run=True does NOT call any subprocess or modify ST Factory DB
+6. Mock subprocess for git operations, verify correct commands constructed
+7. Verify failed git push → PatchApplication has status="failed", next patch still attempted
+
+---
+
+### Feature 7: Safety Systems
+**Description**: Circuit breaker, per-cycle caps, and graceful shutdown handler. Prevents runaway autonomous behavior.
+
+**Requirements**:
+- `safety.py`:
+  - `CircuitBreaker` class:
+    - Constructor takes `threshold: int` (default 3), `state_db`
+    - `record_success(gate: str) -> None`: Reset consecutive failures for gate to 0 in state_db
+    - `record_failure(gate: str, error: str) -> None`: Increment consecutive failures in state_db. If >= threshold, set halted=True.
+    - `is_halted(gate: str) -> bool`: Check if gate is halted
+    - `reset(gate: str) -> None`: Manually reset a gate (for CLI `reset` command)
+    - `get_status() -> list[GateStatus]`: Return status of all 3 gates
+  - `CycleCaps` class:
+    - Constructor takes config
+    - `check_approve_cap(current_count: int) -> bool`: Returns True if under cap
+    - `check_patch_cap(current_count: int) -> bool`: Returns True if under cap
+  - `ShutdownHandler` class:
+    - `install() -> None`: Register SIGTERM and SIGINT handlers via `signal.signal()`
+    - `should_stop() -> bool`: Returns True if signal received
+    - `wait_for_completion(timeout: float = 30.0) -> None`: Wait for current operation to finish (sets an Event, blocks until set or timeout)
+  - All three classes are used by the orchestrator to guard gate execution
+
+**Test Steps**:
+1. Create CircuitBreaker with threshold=3. Record 2 failures → `is_halted()` returns False. Record 3rd failure → `is_halted()` returns True.
+2. After halting, call `reset()` → `is_halted()` returns False, consecutive_failures back to 0.
+3. Record a success after 2 failures → consecutive_failures resets to 0.
+4. CycleCaps: `check_approve_cap(2)` with max=3 → True. `check_approve_cap(3)` → False.
+5. ShutdownHandler: install handlers, send SIGTERM to self → `should_stop()` returns True.
+
+---
+
+### Feature 8: CLI + Cycle Orchestrator
+**Description**: argparse CLI entry point and the main orchestrator that sequences gates into cycles.
+
+**Requirements**:
+- `metroplex.py` (CLI entry point):
+  - Commands:
+    - `metroplex.py triage [--dry-run]` — Run Gate 1 only
+    - `metroplex.py build [--dry-run]` — Run Gate 2 only (uses already-approved ideas from state DB, or pass `--idea-id` for specific idea)
+    - `metroplex.py patch [--dry-run]` — Run Gate 3 only
+    - `metroplex.py run-all [--dry-run] [--cycles N]` — Run full cycle (triage → build → patch). Default 1 cycle. With `--cycles 0` runs indefinitely until SIGTERM.
+    - `metroplex.py status` — Show current state: cycle history, gate status (circuit breaker), pending items
+    - `metroplex.py reset --gate {triage|build|patch|all}` — Reset circuit breaker for gate(s)
+  - Global flags: `--config-file PATH` (optional TOML/JSON config override), `--verbose` (DEBUG logging)
+  - All commands print human-readable output to stdout
+  - Exit codes: 0=success, 1=error, 2=gate halted by circuit breaker
+- `orchestrator.py`:
+  - `CycleOrchestrator` class takes config, all gates, safety systems, state_db, audit_logger
+  - `run_cycle(dry_run: bool = False) -> CycleResult`:
+    1. Log cycle start
+    2. Run Gate 1 (triage) — skip if circuit breaker halted
+    3. Run Gate 2 (build) — skip if circuit breaker halted, feed approved ideas from step 2
+    4. Run Gate 3 (patch) — skip if circuit breaker halted
+    5. For each gate: on success → `circuit_breaker.record_success()`, on exception → `circuit_breaker.record_failure()`
+    6. Log cycle end with summary
+    7. Return CycleResult
+  - `run_continuous(max_cycles: int = 0, dry_run: bool = False) -> list[CycleResult]`:
+    1. Install shutdown handler
+    2. Loop: run_cycle, check shutdown_handler.should_stop(), sleep between cycles (configurable, default 60s)
+    3. If max_cycles > 0, stop after N cycles
+    4. Return all CycleResults
+  - `get_status() -> dict`: Return full system status (gate statuses, recent cycles, pending items)
+
+**Test Steps**:
+1. Run `python metroplex.py triage --dry-run` → prints scored decisions to stdout, exit code 0
+2. Run `python metroplex.py build --dry-run` → prints generated spec paths and queue commands, exit code 0
+3. Run `python metroplex.py patch --dry-run` → prints proposed patches without modifying anything, exit code 0
+4. Run `python metroplex.py status` → shows gate statuses and cycle history
+5. Run `python metroplex.py run-all --dry-run` → executes all 3 gates in sequence with dry-run
+6. Run `python metroplex.py reset --gate triage` → resets triage circuit breaker
+7. Verify orchestrator skips halted gates and continues to non-halted ones
+8. Verify SIGTERM during `run_continuous` triggers graceful shutdown
+
+---
+
+## Data Models
+
+### Metroplex State DB (metroplex.db)
+
+```sql
+CREATE TABLE triage_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    idea_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    weighted_score REAL NOT NULL,
+    scaled_score REAL NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ('approve', 'reject', 'defer')),
+    reason TEXT NOT NULL DEFAULT '',
+    decided_at TEXT NOT NULL
+);
+
+CREATE TABLE build_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    idea_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    spec_path TEXT NOT NULL,
+    queue_job_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('queued', 'started', 'completed', 'failed')),
+    queued_at TEXT NOT NULL
+);
+
+CREATE TABLE patch_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patch_id TEXT NOT NULL,
+    persona_id TEXT NOT NULL,
+    from_version TEXT,
+    to_version TEXT,
+    status TEXT NOT NULL CHECK(status IN ('applied', 'failed', 'skipped')),
+    reason TEXT NOT NULL DEFAULT '',
+    applied_at TEXT NOT NULL
+);
+
+CREATE TABLE cycles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cycle_id TEXT NOT NULL UNIQUE,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    triage_count INTEGER DEFAULT 0,
+    build_count INTEGER DEFAULT 0,
+    patch_count INTEGER DEFAULT 0,
+    errors TEXT DEFAULT '[]'
+);
+
+CREATE TABLE gate_status (
+    gate TEXT PRIMARY KEY CHECK(gate IN ('triage', 'build', 'patch')),
+    consecutive_failures INTEGER DEFAULT 0,
+    halted INTEGER DEFAULT 0,
+    last_error TEXT
+);
+
+CREATE INDEX idx_triage_decisions_idea ON triage_decisions(idea_id);
+CREATE INDEX idx_triage_decisions_decision ON triage_decisions(decision);
+CREATE INDEX idx_build_jobs_status ON build_jobs(status);
+CREATE INDEX idx_cycles_started ON cycles(started_at);
+```
+
+### Upstream DB Schemas (Read-Only)
+
+**IdeaForge — `ideas` table (key columns for triage)**:
+```sql
+-- Metroplex reads these columns:
+-- id, title, description, problem_statement, target_audience,
+-- weighted_score (REAL, 0-10 scale), opportunity_score, problem_score,
+-- feasibility_score, why_now_score, competition_score,
+-- artifact_type (tool|agent|product), signal_count, status
+-- WHERE status = 'scored' AND weighted_score IS NOT NULL
+```
+
+**ST Factory — `persona_patches` table (key columns for patching)**:
+```sql
+-- Metroplex reads these columns:
+-- id, patch_id, persona_id, rationale, from_version, to_version,
+-- raw_json (contains full patch operations), status
+-- WHERE status = 'proposed'
+-- Metroplex WRITES: UPDATE persona_patches SET status = 'applied' WHERE patch_id = ?
+```
+
+**Ultra-Magnus — `ideas` + `evaluation_results` + `build_results` (for status)**:
+```sql
+-- Metroplex reads for status display:
+-- ideas: id, title, current_stage, current_status
+-- evaluation_results: idea_id, overall_score, recommendation
+-- build_results: idea_id, outcome, github_repo
+```
+
+---
+
+## File Structure
+
+```
+metroplex/
+├── metroplex.py              # CLI entry point (argparse)
+├── orchestrator.py           # Cycle lifecycle + gate sequencing
+├── config.py                 # All paths, thresholds, env overrides
+├── db.py                     # metroplex.db state management
+├── models.py                 # Pydantic v2 models
+├── safety.py                 # Circuit breaker, caps, shutdown
+├── audit.py                  # Structured JSON audit logger
+├── gates/
+│   ├── __init__.py
+│   ├── triage.py             # Gate 1: Idea triage
+│   ├── build.py              # Gate 2: Spec gen + build orchestration
+│   └── patcher.py            # Gate 3: Persona patch application
+├── readers/
+│   ├── __init__.py
+│   ├── ideaforge_reader.py   # Read IdeaForge SQLite
+│   ├── stfactory_reader.py   # Read ST Factory SQLite
+│   └── um_reader.py          # Read Ultra-Magnus SQLite
+├── spec_templates/
+│   └── app_spec_template.md  # Jinja2 template for generated app specs
+├── data/                     # Runtime state directory (gitignored)
+│   ├── metroplex.db          # Created at runtime
+│   └── decisions.log         # Audit log (JSON lines)
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py           # Shared fixtures: in-memory DBs, test config
+│   ├── test_config.py
+│   ├── test_db.py
+│   ├── test_triage.py
+│   ├── test_build.py
+│   ├── test_patcher.py
+│   ├── test_safety.py
+│   └── test_orchestrator.py
+├── requirements.txt
+├── init.sh
+└── README.md
+```
+
+---
+
+## Success Criteria
+
+1. `python metroplex.py triage --dry-run` reads IdeaForge DB, prints scored decisions with approve/reject/defer labels
+2. `python metroplex.py build --dry-run` generates valid app spec files from approved ideas
+3. `python metroplex.py patch --dry-run` lists proposed patches without modifying anything
+4. `python metroplex.py run-all` executes full cycle (triage → build → patch) sequentially
+5. `python metroplex.py status` shows cycle state, gate statuses, and circuit breaker status
+6. Circuit breaker halts a gate after 3 consecutive failures, other gates continue
+7. Per-cycle caps enforce max 3 ideas approved and max 5 patches applied
+8. SIGTERM/SIGINT triggers graceful shutdown (finishes current operation, then stops)
+9. All decisions logged to `data/decisions.log` as structured JSON lines
+10. All pytest tests pass using in-memory SQLite fixtures (no dependency on real filesystem DBs)
+
+---
+
+## Constraints & Notes
+
+- **No web UI, no API server** — this is a CLI-only application
+- **No cross-project Python imports** — all upstream data accessed via direct SQLite reads with `?mode=ro` URI
+- **Single write target** — only ST Factory's `persona_patches.status` column is written to externally. Everything else is read-only or writes to Metroplex's own `metroplex.db`
+- **subprocess for all external operations** — queue_runner.py, git clone, git commit, git push are all called via `subprocess.run()`. Do NOT import queue_runner.py as a module.
+- **IdeaForge score scaling** — IdeaForge `weighted_score` is 0-10 scale. Metroplex scales to 0-100 by multiplying by 10 before applying thresholds.
+- **Per-cycle caps are hard limits** — once hit, remaining items are deferred, never silently dropped
+- **All test fixtures use in-memory SQLite** — `sqlite3.connect(':memory:')`. No test should depend on filesystem paths or real databases.
+- **ISO 8601 timestamps everywhere** — all datetime fields stored as ISO 8601 strings
+- **Jinja2 template must produce valid yce-harness app specs** — the generated specs must follow the format in APP_SPEC_TEMPLATE.md so queue_runner.py can process them
+- **Git operations may fail** — network errors, auth issues, merge conflicts. Always handle gracefully, record failure, continue to next item.
+- **The `data/` directory should be gitignored** — runtime state, not source code

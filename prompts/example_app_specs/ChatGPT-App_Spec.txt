@@ -1,0 +1,441 @@
+# ChatGPT Signal Agent - App Specification
+
+## Overview
+
+ChatGPT Signal Agent is a headless Python service that uses OpenAI's API to generate alternative problem framings, surface consumer-perspective insights, and identify overlooked user segments that developer-centric tools miss. Unlike Perplexity (citation-backed research) or Gemini (trend detection), this agent leverages ChatGPT's unique training distribution — shaped by the largest consumer user base — to reframe technical problems through a mainstream lens and surface willingness-to-pay signals. Outputs normalized IdeaForge Signal objects for the Snow-Town factory pipeline. Runs on cron with zero human intervention.
+
+---
+
+## Tech Stack
+
+- **Backend**: Python 3.11+ CLI (Typer + Rich)
+- **API Client**: openai SDK (official OpenAI Python SDK)
+- **LLM/AI**: GPT-4o-mini (cost-optimized for high-volume scanning)
+- **Database**: SQLite (shared IdeaForge database at ~/projects/ideaforge/data/ideaforge.db)
+- **Validation**: Pydantic v2
+- **Package Manager**: uv
+- **Testing**: pytest + pytest-mock
+
+---
+
+## Environment Setup
+
+### Prerequisites
+- Python 3.11+
+- uv installed globally
+- Access to shared IdeaForge SQLite database
+- OpenAI API key
+
+### Configuration
+- No server ports required (headless CLI)
+- Environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `IDEAFORGE_DB_PATH` | No | Path to IdeaForge SQLite DB (default: ~/projects/ideaforge/data/ideaforge.db) |
+| `CHATGPT_MODEL` | No | OpenAI model to use (default: gpt-4o-mini) |
+| `CHATGPT_MAX_QUERIES_PER_RUN` | No | Max research queries per harvest cycle (default: 15) |
+| `CHATGPT_REQUEST_DELAY` | No | Seconds between API calls (default: 1.5) |
+
+Note: `~/.env.shared` should contain OPENAI_API_KEY. Source it before running.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   ChatGPT Signal Agent                      │
+│                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │ Query Engine │───▶│   OpenAI     │───▶│   Signal     │  │
+│  │ (consumer    │    │   Client     │    │   Extractor  │  │
+│  │  reframing   │    │ (GPT-4o-mini)│    │  (parse +    │  │
+│  │  queries)    │    │              │    │   classify)  │  │
+│  └──────────────┘    └──────────────┘    └──────┬───────┘  │
+│                                                  │          │
+│                                          ┌───────▼───────┐  │
+│                                          │  IdeaForge    │  │
+│                                          │  DB Writer    │  │
+│                                          │  (shared DB)  │  │
+│                                          └───────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│            IdeaForge Pipeline (existing)                     │
+│  signals table → synthesize → score → classify → export     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Data Flow:**
+1. Query Engine selects consumer-perspective research queries from rotating templates + domain catalog
+2. OpenAI Client sends each query to GPT-4o-mini with structured output instructions
+3. Signal Extractor parses each response into 0-N Signal objects with consumer-lens classification
+4. DB Writer inserts signals into shared IdeaForge SQLite DB (INSERT OR IGNORE for dedup)
+5. Existing IdeaForge pipeline picks up unprocessed signals on its next cycle
+
+**Unique Value — Consumer Lens:**
+ChatGPT's training reflects the broadest consumer user base of any LLM. When asked to reframe developer problems through a non-technical lens, it surfaces pain points and willingness-to-pay signals that developer-centric research (HN, Perplexity, Gemini) systematically misses. The factory can then compare: do consumer-framed signals produce higher-scoring ideas?
+
+---
+
+## Core Features
+
+### Feature 1: OpenAI API Client
+**Description**: HTTP client for OpenAI's Chat Completions API using the official openai SDK. Configures GPT-4o-mini for cost-efficient high-volume scanning with structured output formatting.
+
+**Requirements**:
+- Use `openai` SDK (official OpenAI Python SDK)
+- Initialize with `openai.OpenAI(api_key=...)` pattern
+- Default model: `gpt-4o-mini` (cost-optimized — ~$0.15 per million input tokens)
+- Use chat completions endpoint with system + user messages
+- Request structured JSON output via response_format parameter when available, or via strong system prompt instructions
+- Rate limiting: configurable delay between requests (default 1.5 seconds)
+- Retry logic: exponential backoff on 429/5xx errors (max 3 retries)
+- Timeout: 30 seconds per request
+- Return structured ChatGPTResponse dataclass with answer text, model, usage stats, and response time
+
+**Test Steps**:
+1. Create client with mock API key and verify initialization
+2. Mock a successful chat completion response and verify answer is parsed correctly
+3. Mock a 429 rate limit response and verify retry with backoff occurs
+4. Mock a timeout and verify ChatGPTError is raised with actionable message
+5. Verify request includes system message and user message
+6. Verify model parameter is set correctly (default gpt-4o-mini)
+
+---
+
+### Feature 2: Consumer-Perspective Research Query Engine
+**Description**: Generates research queries that exploit ChatGPT's unique strength: reframing technical problems through a consumer/mainstream lens. While Perplexity finds citation-backed market gaps and Gemini detects trends, ChatGPT surfaces how non-technical users experience these problems and what they'd pay to solve them.
+
+**Requirements**:
+- Define a domain catalog matching the other signal agents for cross-source comparison: "developer tools", "data engineering", "AI/ML infrastructure", "DevOps", "no-code/low-code", "API management", "observability", "security tooling", "database management", "workflow automation"
+- Define 6 query templates targeting ChatGPT's unique strengths:
+  - Consumer reframing: "If a non-technical business owner or manager needed to handle {domain} tasks themselves (without hiring a specialist), what would frustrate them most? What would they search for? What would they be willing to pay for?"
+  - Willingness to pay: "What specific {domain} problems do small teams and solo practitioners face that they would realistically pay $20-100/month to solve? Focus on problems that waste significant time and have no good affordable solution."
+  - Overlooked audiences: "Who are the underserved or overlooked user groups in {domain} that current tools largely ignore? Think beyond senior engineers — consider freelancers, students, career changers, non-technical founders, small agency owners."
+  - Simplification opportunities: "What {domain} tasks are unnecessarily complex or intimidating for newcomers? What could be dramatically simplified into a '1-click' or 'no-config' experience without losing essential functionality?"
+  - Cross-pollination: "What successful product patterns from consumer apps (like Notion, Canva, or Duolingo) could work if applied to {domain}? Think about UX patterns, pricing models, or onboarding approaches."
+  - Friction mapping: "What are the most time-consuming manual processes that {domain} practitioners still do by hand in 2026? Which of these feel like they should have been automated years ago?"
+- Implement query rotation: track which (template, domain) combinations have been used recently (store in local JSON tracking file)
+- Select queries for each run by prioritizing least-recently-used combinations
+- Each run generates up to CHATGPT_MAX_QUERIES_PER_RUN queries (default 15)
+- System prompt establishes ChatGPT as a "product strategist who thinks about mainstream adoption and consumer experience, not just technical capability"
+
+**Test Steps**:
+1. Verify domain catalog contains at least 10 domains
+2. Verify 6 query templates exist and each contains a `{domain}` placeholder
+3. Generate queries for a run and verify each is a unique (template, domain) combination
+4. Run query generation twice and verify second run prioritizes different combinations
+5. Verify query count does not exceed CHATGPT_MAX_QUERIES_PER_RUN
+6. Verify the tracking file is created/updated after each run
+7. Verify system prompt establishes consumer/mainstream perspective
+
+---
+
+### Feature 3: Consumer-Lens Signal Extractor
+**Description**: Parses ChatGPT's responses into structured IdeaForge Signal objects. Applies a consumer-relevance scoring heuristic — signals mentioning specific price points, user segments, or willingness-to-pay indicators receive higher scores.
+
+**Requirements**:
+- Each ChatGPT response may contain multiple signals (a response about "overlooked audiences in DevOps" might identify 3-5 distinct user segments with unmet needs)
+- Parse response text to extract individual problem/opportunity statements
+- For each extracted signal:
+  - Generate a unique signal_id: `sig_chatgpt_{hash}` where hash is SHA-256 of the signal title (first 12 chars)
+  - Set subreddit field to `"chatgpt"` (source identifier for Sky-Lynx tracking)
+  - Set title to a concise problem/opportunity statement (max 200 chars)
+  - Set selftext to the full context including target user segment and proposed value (max 500 chars)
+  - Set url to empty string (ChatGPT doesn't provide source URLs)
+  - Set score using consumer-relevance heuristic (0-20 scale):
+    - Base score: 5
+    - +3 if mentions a specific price point or willingness-to-pay
+    - +3 if identifies a specific underserved user segment
+    - +3 if describes a concrete simplification opportunity
+    - +3 if references a successful consumer pattern that could transfer
+    - +3 if mentions time waste (hours/week, manual process)
+    - Cap at 20
+  - Set num_comments to 0 (not applicable)
+  - Set created_utc to current timestamp
+  - Classify using IdeaForge's existing classify_signal() function against SIGNAL_KEYWORDS
+  - If classify_signal returns None, use query template type as fallback: consumer_reframing→pain_point, willingness_to_pay→wish, overlooked_audiences→wish, simplification→solution_request, cross_pollination→solution_request, friction_mapping→pain_point
+  - Set matched_keywords to either keyword matches or ["chatgpt_consumer_inferred"] for fallback
+  - Set harvested_at to current UTC datetime
+- System prompt should instruct ChatGPT to structure its response as numbered items, each with: the problem, who experiences it, how severe it is, and what a solution might look like
+- Handle edge cases: empty responses, overly generic responses, API errors
+
+**Test Steps**:
+1. Provide a mock ChatGPT response with 4 distinct consumer insights and verify 4 Signal objects are extracted
+2. Verify signal_id format is `sig_chatgpt_{12-char-hash}`
+3. Verify subreddit is set to "chatgpt" for all extracted signals
+4. Verify consumer-relevance scoring: signal mentioning "$30/month" + "freelance designers" → score of 11 (5 base + 3 price + 3 segment)
+5. Verify score caps at 20 even when all heuristics match
+6. Verify fallback classification maps willingness_to_pay template → wish signal type
+7. Verify title truncation at 200 chars and selftext at 500 chars
+8. Verify empty responses produce 0 signals without raising exceptions
+
+---
+
+### Feature 4: IdeaForge Database Integration
+**Description**: Writes extracted signals directly into the shared IdeaForge SQLite database, using the same schema and insert patterns as the existing HN harvester for seamless pipeline compatibility.
+
+**Requirements**:
+- Import and use IdeaForge's existing db module: `from ideaforge.db import get_connection, insert_signals`
+- Import IdeaForge's config for DB path: `from ideaforge.config import get_db_path`
+- Allow DB path override via IDEAFORGE_DB_PATH environment variable
+- Use INSERT OR IGNORE for deduplication (same as HN harvester)
+- Log insertion results: total signals attempted, new inserts, duplicates skipped
+- Verify database exists and has correct schema before inserting (fail fast with actionable error)
+- All inserted signals have processed=0 so the existing IdeaForge synthesizer picks them up
+
+**Test Steps**:
+1. Create a temporary SQLite DB with IdeaForge schema and insert 5 test signals
+2. Verify all 5 signals appear in the signals table with processed=0
+3. Verify subreddit column is "chatgpt" for all inserted signals
+4. Insert the same 5 signals again and verify 0 new inserts (dedup works)
+5. Verify signals are readable by IdeaForge's get_unprocessed_signals()
+6. Test with missing database file and verify actionable error message
+
+---
+
+### Feature 5: CLI Interface
+**Description**: Typer-based CLI with commands for harvesting, checking status, and managing the query rotation. Matches the CLI pattern established by IdeaForge and the Perplexity/Gemini signal agents.
+
+**Requirements**:
+- `chatgpt-signal harvest` — Run a full harvest cycle: generate queries, call OpenAI, extract signals, insert to DB. Print Rich summary table showing: queries run, signals extracted, signals inserted, duplicates skipped, average consumer-relevance score.
+- `chatgpt-signal harvest --dry-run` — Generate queries and show what would be searched without calling the API
+- `chatgpt-signal status` — Show current state: total signals harvested (all time), signals from last run, average consumer-relevance score across all signals, query rotation coverage, next queries that would run
+- `chatgpt-signal queries` — List all possible (template, domain) combinations with last-used timestamps
+- `chatgpt-signal reset-rotation` — Clear query rotation tracking to start fresh
+- Use Rich for formatted output (tables, panels, progress bars)
+- Exit code 0 on success, 1 on error
+
+**Test Steps**:
+1. Run `chatgpt-signal harvest --dry-run` and verify queries are printed without API calls
+2. Run `chatgpt-signal harvest` with mocked OpenAI API and verify signals are inserted to DB
+3. Run `chatgpt-signal status` and verify output shows signal counts and consumer-relevance metrics
+4. Run `chatgpt-signal queries` and verify all (template, domain) combinations are listed
+5. Run `chatgpt-signal reset-rotation` and verify tracking file is cleared
+6. Verify --dry-run flag prevents any database writes
+
+---
+
+### Feature 6: Harvest Run Logging & Metrics
+**Description**: Each harvest run logs detailed metrics for Sky-Lynx observability, including ChatGPT-specific consumer-relevance scoring metrics that track how well consumer reframing correlates with downstream idea quality.
+
+**Requirements**:
+- Create a harvest_runs table in a local agent database (separate from IdeaForge DB):
+  ```sql
+  CREATE TABLE harvest_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_at TIMESTAMP NOT NULL,
+      queries_executed INTEGER DEFAULT 0,
+      signals_extracted INTEGER DEFAULT 0,
+      signals_inserted INTEGER DEFAULT 0,
+      signals_duplicated INTEGER DEFAULT 0,
+      avg_consumer_relevance_score REAL DEFAULT 0,
+      max_consumer_relevance_score REAL DEFAULT 0,
+      signals_with_price_mention INTEGER DEFAULT 0,
+      signals_with_segment INTEGER DEFAULT 0,
+      domains_covered TEXT DEFAULT '[]',
+      templates_used TEXT DEFAULT '[]',
+      api_errors INTEGER DEFAULT 0,
+      avg_response_time_ms REAL DEFAULT 0,
+      run_duration_seconds REAL DEFAULT 0
+  );
+  ```
+- Log every run with full metrics including consumer-relevance breakdowns
+- Track price mention and user segment identification rates (Sky-Lynx can correlate these with idea willingness-to-pay potential)
+- Include timing data: per-query response time, total run duration
+- Track API errors separately for reliability monitoring
+- The `status` CLI command reads from this table for historical reporting
+- Store local DB at `data/chatgpt_agent.db`
+
+**Test Steps**:
+1. Run a harvest cycle and verify a row is created in harvest_runs table
+2. Verify queries_executed matches the number of API calls made
+3. Verify avg_consumer_relevance_score is calculated correctly
+4. Verify signals_with_price_mention counts signals where price heuristic triggered
+5. Verify run_duration_seconds is greater than 0
+6. Run `chatgpt-signal status` and verify it displays historical run data with consumer-relevance metrics
+
+---
+
+### Feature 7: Cron Automation & Shell Wrapper
+**Description**: Shell script and cron configuration for fully autonomous daily operation. Staggered to run after both Perplexity and Gemini agents, ensuring all three external signal sources complete before IdeaForge's next synthesis cycle.
+
+**Requirements**:
+- Create `run-harvest.sh` shell wrapper script:
+  - Source `~/.env.shared` for API keys
+  - Acquire lock file (`/tmp/chatgpt-signal-harvest.lock`) to prevent overlapping runs
+  - Run `chatgpt-signal harvest` with full logging
+  - Log output to `logs/harvest.log`
+  - Release lock file on completion (including on error)
+  - Exit with appropriate code
+- Create `cron/chatgpt-signal` cron definition:
+  - Schedule: Daily at 9 AM UTC (3 hours after IdeaForge, 2 after Perplexity, 1 after Gemini)
+  - Log rotation: weekly, 12 weeks kept
+- Create `cron/logrotate-chatgpt-signal` logrotate config
+- Create `scripts/install-cron.sh` for easy setup
+
+**Test Steps**:
+1. Verify `run-harvest.sh` sources `~/.env.shared` before running
+2. Verify lock file is created at start and removed at end
+3. Run `run-harvest.sh` twice simultaneously and verify second invocation exits with lock error
+4. Verify cron schedule is set to `0 9 * * *` (9 AM UTC daily)
+5. Verify log output is written to `logs/harvest.log`
+6. Verify logrotate config rotates weekly and keeps 12 weeks
+
+---
+
+## Data Models
+
+### Pydantic Models
+```python
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+class ChatGPTResponse(BaseModel):
+    """Parsed response from OpenAI Chat Completions API."""
+    query: str
+    answer: str
+    model: str = ""
+    usage: dict = Field(default_factory=dict)
+    response_time_ms: float = 0.0
+
+class ExtractedSignal(BaseModel):
+    """A single signal extracted from a ChatGPT response."""
+    title: str = Field(max_length=200)
+    description: str = Field(max_length=500)
+    query_template_type: str
+    consumer_relevance_score: int = 5
+    has_price_mention: bool = False
+    has_user_segment: bool = False
+    has_simplification: bool = False
+    has_pattern_transfer: bool = False
+    has_time_waste: bool = False
+
+class QueryRecord(BaseModel):
+    """Tracks when a (template, domain) combination was last used."""
+    template_key: str
+    domain: str
+    last_used: datetime | None = None
+
+class HarvestRunMetrics(BaseModel):
+    """Metrics from a single harvest run."""
+    run_at: datetime
+    queries_executed: int = 0
+    signals_extracted: int = 0
+    signals_inserted: int = 0
+    signals_duplicated: int = 0
+    avg_consumer_relevance_score: float = 0.0
+    max_consumer_relevance_score: float = 0.0
+    signals_with_price_mention: int = 0
+    signals_with_segment: int = 0
+    domains_covered: list[str] = Field(default_factory=list)
+    templates_used: list[str] = Field(default_factory=list)
+    api_errors: int = 0
+    avg_response_time_ms: float = 0.0
+    run_duration_seconds: float = 0.0
+```
+
+### SQLite Schema (Local Agent DB)
+```sql
+CREATE TABLE IF NOT EXISTS harvest_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_at TIMESTAMP NOT NULL,
+    queries_executed INTEGER DEFAULT 0,
+    signals_extracted INTEGER DEFAULT 0,
+    signals_inserted INTEGER DEFAULT 0,
+    signals_duplicated INTEGER DEFAULT 0,
+    avg_consumer_relevance_score REAL DEFAULT 0,
+    max_consumer_relevance_score REAL DEFAULT 0,
+    signals_with_price_mention INTEGER DEFAULT 0,
+    signals_with_segment INTEGER DEFAULT 0,
+    domains_covered TEXT DEFAULT '[]',
+    templates_used TEXT DEFAULT '[]',
+    api_errors INTEGER DEFAULT 0,
+    avg_response_time_ms REAL DEFAULT 0,
+    run_duration_seconds REAL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS query_rotation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_key TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    last_used TIMESTAMP,
+    UNIQUE(template_key, domain)
+);
+```
+
+---
+
+## File Structure
+
+```
+chatgpt-signal-agent/
+├── src/
+│   └── chatgpt_signal/
+│       ├── __init__.py
+│       ├── cli.py              # Typer CLI (harvest, status, queries, reset-rotation)
+│       ├── client.py           # OpenAI API client
+│       ├── query_engine.py     # Consumer-perspective query generation + rotation
+│       ├── extractor.py        # Signal extraction with consumer-relevance scoring
+│       ├── db.py               # Local agent DB (harvest_runs, query_rotation)
+│       ├── config.py           # Configuration constants + env var loading
+│       └── models.py           # Pydantic models
+├── tests/
+│   ├── __init__.py
+│   ├── test_client.py          # OpenAI client tests
+│   ├── test_query_engine.py    # Query generation + rotation tests
+│   ├── test_extractor.py       # Signal extraction + consumer scoring tests
+│   ├── test_db.py              # Database integration tests
+│   └── test_cli.py             # CLI command tests
+├── data/                       # Runtime data (gitignored)
+│   └── chatgpt_agent.db        # Local metrics + rotation tracking
+├── logs/                       # Harvest logs (gitignored)
+├── cron/
+│   ├── chatgpt-signal          # Cron schedule definition
+│   └── logrotate-chatgpt-signal # Log rotation config
+├── scripts/
+│   └── install-cron.sh         # Cron installation helper
+├── run-harvest.sh              # Shell wrapper for cron execution
+├── pyproject.toml              # Project config (uv/pip)
+├── .env.example                # Template env file
+├── .gitignore
+├── init.sh                     # Startup/install script (required by harness)
+└── README.md
+```
+
+---
+
+## Success Criteria
+
+1. `chatgpt-signal harvest` executes a full cycle: generates queries, calls OpenAI API, extracts signals, inserts into IdeaForge DB
+2. Signals appear in IdeaForge's `signals` table with `subreddit = 'chatgpt'` and `processed = 0`
+3. IdeaForge's existing `synthesize` command picks up ChatGPT signals alongside HN, Perplexity, and Gemini signals without modification
+4. Consumer-relevance scoring correctly identifies signals with price mentions, user segments, and simplification opportunities
+5. Query rotation prevents the same (template, domain) from running on consecutive days
+6. Duplicate signals are silently skipped (INSERT OR IGNORE on signal_id)
+7. `--dry-run` mode shows planned queries without making API calls or DB writes
+8. Harvest run metrics include consumer-relevance breakdowns for Sky-Lynx quality correlation
+9. `run-harvest.sh` runs autonomously via cron at 9 AM UTC daily with proper locking
+10. All tests pass with `pytest tests/ -v` (minimum 30 tests covering all modules)
+11. No hardcoded API keys — all secrets loaded from environment variables
+
+---
+
+## Constraints & Notes
+
+- **No frontend** — this is a headless CLI service. No UI needed.
+- **Shared database** — writes to IdeaForge's existing SQLite DB. Do NOT create a separate signals table.
+- **IdeaForge as dependency** — import from `ideaforge.models` and `ideaforge.db` directly. Add as path dependency: `ideaforge = { path = "../../ideaforge" }`
+- **Signal ID uniqueness** — use SHA-256 hash of the extracted signal title (first 12 chars) for deterministic IDs.
+- **GPT-4o-mini** — use mini model for cost optimization. At ~$0.15 per million input tokens, 15 queries/day costs pennies. Do NOT use GPT-4o or GPT-4 Turbo unless explicitly configured.
+- **No web browsing** — unlike Perplexity and Gemini, ChatGPT does not have real-time web search in API mode. This is intentional — ChatGPT's value here is its reasoning from training data and its consumer-perspective reframing, not real-time research. The other two agents cover real-time.
+- **Consumer-relevance scoring** — the heuristic scoring is deliberately simple. Sky-Lynx will learn over time whether signals with higher consumer-relevance scores actually produce better ideas. The heuristic is a starting hypothesis, not a final answer.
+- **Rate limiting** — conservative. Default 1.5 second delay. 15 queries per run max. GPT-4o-mini supports high RPM but no reason to rush.
+- **Idempotent runs** — safe to re-run. Duplicate signal_ids are silently skipped.
+- **init.sh** — should create venv, install dependencies (including openai), initialize local DB schema, verify IdeaForge DB exists
+- **Staggered schedule** — 9 AM UTC is 3 hours after IdeaForge (6 AM), 2 after Perplexity (7 AM), 1 after Gemini (8 AM). All signals land well before the next day's synthesis.
+- **No real-time search is a feature** — ChatGPT's consumer-lens reframing from training data provides a fundamentally different signal type than real-time search. This diversity is the point.
