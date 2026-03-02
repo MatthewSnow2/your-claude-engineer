@@ -31,7 +31,7 @@ FRONTEND_PID=$!
 
 echo ""
 echo "Application is running!"
-echo "   Frontend: http://localhost:3000"
+echo "   Frontend: http://localhost:3001"
 echo "   Backend:  http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""

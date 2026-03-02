@@ -4,12 +4,10 @@ FastAPI main application entry point for AI Agent Analytics Platform
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 from database import init_database, seed_database
 from routes import router
-import os
 
 # Load environment variables
 load_dotenv()
@@ -34,11 +32,6 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(router, prefix="/api")
-
-# Mount static files directory
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/api/health")
 async def health_check():

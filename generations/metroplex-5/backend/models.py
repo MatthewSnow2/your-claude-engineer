@@ -64,3 +64,7 @@ class ItemResponse(BaseModel):
     description: Optional[str] = None
     status: ItemStatus
     created_at: datetime
+
+class DeleteResponse(BaseModel):
+    """Response model for delete operations"""
+    message: str
