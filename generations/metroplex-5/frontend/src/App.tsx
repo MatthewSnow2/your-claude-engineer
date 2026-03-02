@@ -9,6 +9,7 @@ type Page =
 function App() {
   const [apiStatus, setApiStatus] = useState<string>('checking...')
   const [currentPage, setCurrentPage] = useState<Page>({ type: 'dashboard' })
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   useEffect(() => {
     // Test backend connection
@@ -24,6 +25,8 @@ function App() {
 
   const navigateToDashboard = () => {
     setCurrentPage({ type: 'dashboard' })
+    // Trigger refresh when navigating back to dashboard
+    setRefreshTrigger(prev => prev + 1)
   }
 
   return (
@@ -59,7 +62,10 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentPage.type === 'dashboard' ? (
-          <Dashboard onNavigateToDetail={navigateToDetail} />
+          <Dashboard
+            onNavigateToDetail={navigateToDetail}
+            refreshTrigger={refreshTrigger}
+          />
         ) : (
           <ItemDetail
             itemId={currentPage.itemId}

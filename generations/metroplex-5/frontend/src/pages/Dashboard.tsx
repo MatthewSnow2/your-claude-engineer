@@ -6,17 +6,21 @@ import Card from '../components/Card'
 import ItemCard from '../components/ItemCard'
 import Modal from '../components/Modal'
 import ItemForm from '../components/ItemForm'
+import Toast, { type ToastType } from '../components/Toast'
 
 interface DashboardProps {
   onNavigateToDetail: (itemId: string) => void
+  refreshTrigger?: number
 }
 
-function Dashboard({ onNavigateToDetail }: DashboardProps) {
+function Dashboard({ onNavigateToDetail, refreshTrigger }: DashboardProps) {
   const [items, setItems] = useState<Item[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -43,7 +47,7 @@ function Dashboard({ onNavigateToDetail }: DashboardProps) {
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [refreshTrigger])
 
   const handleCreateItem = async (data: {
     title: string
@@ -51,15 +55,47 @@ function Dashboard({ onNavigateToDetail }: DashboardProps) {
     status: 'active' | 'completed' | 'pending'
     user_id: string
   }) => {
-    const newItem = await apiClient.post<Item>('/items', data)
-    // Merge user data onto new item
+    // Prevent double-submission
+    if (isSubmitting) return
+    setIsSubmitting(true)
+
+    // Create optimistic item with temporary ID
     const userMap = new Map(users.map(u => [u.id, u]))
-    const itemWithUser = {
-      ...newItem,
-      user: userMap.get(newItem.user_id)
+    const optimisticItem: Item = {
+      id: `temp-${Date.now()}`,
+      title: data.title,
+      description: data.description,
+      status: data.status,
+      user_id: data.user_id,
+      created_at: new Date().toISOString(),
+      user: userMap.get(data.user_id)
     }
-    setItems([itemWithUser, ...items])
+
+    // Optimistically add to list
+    setItems([optimisticItem, ...items])
     setIsCreateModalOpen(false)
+
+    try {
+      const newItem = await apiClient.post<Item>('/items', data)
+      // Replace optimistic item with real item
+      const itemWithUser = {
+        ...newItem,
+        user: userMap.get(newItem.user_id)
+      }
+      setItems(prevItems =>
+        prevItems.map(item => item.id === optimisticItem.id ? itemWithUser : item)
+      )
+      setToast({ message: 'Item created successfully!', type: 'success' })
+    } catch (err) {
+      // Revert optimistic update on error
+      setItems(prevItems => prevItems.filter(item => item.id !== optimisticItem.id))
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to create item',
+        type: 'error'
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -165,6 +201,15 @@ function Dashboard({ onNavigateToDetail }: DashboardProps) {
           onCancel={() => setIsCreateModalOpen(false)}
         />
       </Modal>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import Card from '../components/Card'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import ItemForm from '../components/ItemForm'
+import Toast, { type ToastType } from '../components/Toast'
 
 interface ItemDetailProps {
   itemId: string
@@ -20,6 +21,7 @@ function ItemDetail({ itemId, onNavigateBack }: ItemDetailProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,15 +59,48 @@ function ItemDetail({ itemId, onNavigateBack }: ItemDetailProps) {
     status: 'active' | 'completed' | 'pending'
     user_id: string
   }) => {
-    const updatedItem = await apiClient.put<Item>(`/items/${itemId}`, data)
-    // Merge user data onto updated item
+    if (!item) return
+
+    // Store original item for rollback
+    const originalItem = { ...item }
+
+    // Optimistically update UI
     const userMap = new Map(users.map(u => [u.id, u]))
-    const itemWithUser = {
-      ...updatedItem,
-      user: userMap.get(updatedItem.user_id)
+    const optimisticItem: Item = {
+      ...item,
+      title: data.title,
+      description: data.description,
+      status: data.status,
+      user_id: data.user_id,
+      user: userMap.get(data.user_id)
     }
-    setItem(itemWithUser)
+    setItem(optimisticItem)
     setIsEditModalOpen(false)
+
+    try {
+      // Only send allowed update fields (exclude user_id - backend ALLOWED_UPDATE_FIELDS doesn't include it)
+      const updatePayload = {
+        title: data.title,
+        description: data.description,
+        status: data.status
+      }
+      const updatedItem = await apiClient.put<Item>(`/items/${itemId}`, updatePayload)
+      // Update with real server response
+      const itemWithUser = {
+        ...updatedItem,
+        user: userMap.get(updatedItem.user_id)
+      }
+      setItem(itemWithUser)
+      setToast({ message: 'Item updated successfully!', type: 'success' })
+    } catch (err) {
+      // Revert to original on error
+      setItem(originalItem)
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to update item',
+        type: 'error'
+      })
+      setIsEditModalOpen(true)
+    }
   }
 
   const handleDeleteItem = async () => {
@@ -74,9 +109,16 @@ function ItemDetail({ itemId, onNavigateBack }: ItemDetailProps) {
     setIsDeleting(true)
     try {
       await apiClient.delete(`/items/${itemId}`)
-      onNavigateBack()
+      setToast({ message: 'Item deleted successfully!', type: 'success' })
+      // Navigate back after brief delay to show toast
+      setTimeout(() => {
+        onNavigateBack()
+      }, 500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete item')
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to delete item',
+        type: 'error'
+      })
       setIsDeleting(false)
     }
   }
@@ -255,6 +297,15 @@ function ItemDetail({ itemId, onNavigateBack }: ItemDetailProps) {
           onCancel={() => setIsEditModalOpen(false)}
         />
       </Modal>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }
