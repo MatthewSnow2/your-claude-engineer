@@ -3,6 +3,7 @@ generations/
 
 # Log files
 logs/
+*.log
 
 .env
 venv
