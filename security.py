@@ -63,6 +63,8 @@ ALLOWED_COMMANDS: set[str] = {
     "node",
     # Version control
     "git",
+    # API documentation (Context Hub)
+    "chub",
     # Process management
     "ps",
     "lsof",

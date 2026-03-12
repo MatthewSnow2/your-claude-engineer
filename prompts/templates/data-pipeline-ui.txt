@@ -1,0 +1,96 @@
+# {{PROJECT_NAME}} — Data Pipeline UI
+
+A dashboard for monitoring and managing {{PIPELINE_DESCRIPTION}}.
+
+## Tech Stack
+- Frontend: Next.js 15 + React 19 + Tailwind CSS + Shadcn/ui
+- Backend: Next.js API routes
+- Database: SQLite via better-sqlite3
+- Charts: Recharts
+
+## Features (7 total)
+
+### 1. Pipeline Status Overview
+- Cards showing: Total Runs, Success Rate, Avg Duration, Active Now
+- Color-coded status indicators (green/yellow/red)
+- Auto-refresh every 30 seconds
+- Last updated timestamp
+
+### 2. Run History Table
+- Paginated table of pipeline runs
+- Columns: Run ID, Status, Started, Duration, Records Processed, Errors
+- Status badges: running (blue), success (green), failed (red), queued (gray)
+- Click row to see run details
+
+### 3. Run Detail View
+- Timeline of pipeline stages with duration per stage
+- Log output viewer (scrollable, monospace)
+- Error details with stack trace (if failed)
+- Re-run button
+
+### 4. Pipeline Configuration
+- Form to view/edit pipeline parameters
+- Fields: {{CONFIG_FIELDS}}
+- Save configuration (persisted to DB)
+- Show diff of changed values before save
+
+### 5. Data Quality Metrics
+- Chart: records processed per run (last 20 runs)
+- Chart: error rate over time
+- Table: most common error types and counts
+- Threshold alerts (configurable warning/critical levels)
+
+### 6. Manual Trigger
+- Button to trigger a new pipeline run
+- Optional parameter overrides for this run
+- Shows "queued" status immediately
+- Redirects to run detail view
+
+### 7. Notifications Log
+- List of alerts triggered (threshold breaches, failures)
+- Timestamp, severity, message
+- Mark as read / dismiss
+- Filter by severity
+
+## Design Guidelines
+- Dashboard aesthetic: data-dense, dark theme
+- Color palette: dark bg (#0f1117), accent blue (#6c7bff), status colors
+- Shadcn/ui components for consistency
+- Charts use consistent color scheme
+- Optimized for wide screens (1440px+)
+
+## File Structure
+```
+app/
+  layout.tsx
+  page.tsx                  - Status overview dashboard
+  runs/
+    page.tsx                - Run history table
+    [id]/page.tsx           - Run detail view
+  config/page.tsx           - Pipeline configuration
+  alerts/page.tsx           - Notifications log
+  api/
+    runs/route.ts           - GET (list), POST (trigger)
+    runs/[id]/route.ts      - GET run detail
+    config/route.ts         - GET/PUT configuration
+    alerts/route.ts         - GET/PUT alerts
+    stats/route.ts          - GET aggregated metrics
+components/
+  status-cards.tsx
+  run-table.tsx
+  stage-timeline.tsx
+  log-viewer.tsx
+  metrics-charts.tsx
+  config-form.tsx
+lib/
+  db.ts                     - SQLite schema + queries
+  types.ts                  - TypeScript interfaces
+```
+
+## Success Criteria
+- Dashboard loads with seed data showing realistic metrics
+- Run history is paginated and sortable
+- Charts render with real data from DB
+- Configuration saves and persists
+- Manual trigger creates a new run entry
+- No console errors, responsive layout

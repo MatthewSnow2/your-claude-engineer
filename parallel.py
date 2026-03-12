@@ -308,7 +308,7 @@ async def run_parallel_agent(
     max_workers: int = 2,
     max_iterations: int | None = None,
     spec_path: Path | None = None,
-) -> None:
+) -> int:
     """
     Run the parallel execution coordinator.
 
@@ -358,24 +358,24 @@ async def run_parallel_agent(
         if not is_linear_initialized(project_dir):
             print("\nError: Project initialization did not complete.")
             print("Run without --parallel first to initialize the project.")
-            return
+            return 1
 
     # Load project state
     state = load_linear_project_state(project_dir)
     if not state:
         print("Error: Could not load .linear_project.json")
-        return
+        return 1
 
     issues: list[dict] = state.get("issues", [])  # type: ignore[assignment]
     if not issues:
         print("Error: No issues found in .linear_project.json")
-        return
+        return 1
 
     # Verify git is initialized
     if not await ensure_git_initialized(project_dir):
         print("Error: Project directory is not a git repository.")
         print("Run without --parallel first to set up the project.")
-        return
+        return 1
 
     # Phase 2: Build or load execution plan
     plan = load_plan(project_dir)
@@ -422,7 +422,7 @@ async def run_parallel_agent(
     if remaining_count == 0:
         print("All issues are already Done in Linear!")
         print("Run without --parallel to finalize project completion.")
-        return
+        return 0
 
     # Notify Slack that parallel execution is starting
     notifier.send_parallel_start(
@@ -551,3 +551,10 @@ async def run_parallel_agent(
     # Check if all done
     if len(completed) >= plan.total_issues:
         print("\nAll issues completed! Run without --parallel to finalize project completion.")
+        return 0
+
+    # Return non-zero if any issues failed
+    if progress.failed_issues:
+        return 1
+
+    return 0

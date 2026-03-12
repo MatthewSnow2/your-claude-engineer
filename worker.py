@@ -135,8 +135,6 @@ def create_worker_client(args: argparse.Namespace):
         options=ClaudeAgentOptions(
             model=args.model,
             system_prompt=orchestrator_prompt,
-            thinking={"type": "adaptive"},
-            effort="high",
             enable_file_checkpointing=True,
             allowed_tools=[
                 *BUILTIN_TOOLS,

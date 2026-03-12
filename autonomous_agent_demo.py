@@ -39,7 +39,7 @@ AVAILABLE_MODELS: dict[str, str] = {
 
 # Default orchestrator model (can be overridden by ORCHESTRATOR_MODEL env var or --model flag)
 # Haiku is sufficient for orchestration (routing/sequencing) — coding quality comes from the Coding Agent (Sonnet)
-DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "haiku").lower()
+DEFAULT_MODEL: str = os.environ.get("ORCHESTRATOR_MODEL", "sonnet").lower()
 if DEFAULT_MODEL not in AVAILABLE_MODELS:
     DEFAULT_MODEL = "haiku"
 
@@ -72,9 +72,11 @@ Examples:
   # Use absolute path (bypasses generations base)
   uv run python autonomous_agent_demo.py --project-dir /absolute/path/to/project
 
-  # Parallel mode: run independent issues concurrently
-  uv run python autonomous_agent_demo.py --project-dir my-app --parallel
-  uv run python autonomous_agent_demo.py --project-dir my-app --parallel --max-workers 3
+  # Sequential mode (parallel is default, use --sequential to override)
+  uv run python autonomous_agent_demo.py --project-dir my-app --sequential
+
+  # Parallel with custom worker count (default: 3)
+  uv run python autonomous_agent_demo.py --project-dir my-app --max-workers 5
 
 Environment Variables:
   ARCADE_API_KEY             Arcade API key for Linear integration (required)
@@ -116,16 +118,24 @@ Environment Variables:
     parser.add_argument(
         "--parallel",
         action="store_true",
+        default=True,
+        help="Enable parallel execution mode (default: on). "
+        "Spawns concurrent workers for independent issues.",
+    )
+
+    parser.add_argument(
+        "--sequential",
+        action="store_true",
         default=False,
-        help="Enable parallel execution mode: spawn concurrent workers for independent issues. "
-        "Requires an already-initialized project (or will run init first).",
+        help="Disable parallel mode and run issues sequentially. "
+        "Use for small specs (< 5 features) or debugging.",
     )
 
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=2,
-        help="Maximum concurrent worker processes in parallel mode (default: 2, max: 5). "
+        default=3,
+        help="Maximum concurrent worker processes in parallel mode (default: 3, max: 5). "
         "Each worker uses ~400MB RAM. Ignored without --parallel.",
     )
 
@@ -190,12 +200,15 @@ def main() -> int:
     if spec_path is not None and not spec_path.is_absolute():
         spec_path = Path.cwd() / spec_path
 
+    # --sequential overrides --parallel
+    use_parallel: bool = args.parallel and not args.sequential
+
     # Run the agent (parallel or sequential mode)
     try:
-        if args.parallel:
+        if use_parallel:
             from parallel import run_parallel_agent
 
-            asyncio.run(
+            exit_code = asyncio.run(
                 run_parallel_agent(
                     project_dir=project_dir,
                     model=model_id,
@@ -204,6 +217,7 @@ def main() -> int:
                     spec_path=spec_path,
                 )
             )
+            return exit_code
         else:
             asyncio.run(
                 run_autonomous_agent(

@@ -61,6 +61,28 @@ Example: `screenshots/ABC-123-timer-countdown.png`
 
 ---
 
+### API Documentation (Context Hub)
+
+The orchestrator may provide API documentation fetched via `chub` (Context Hub CLI). When API docs are included in your task context:
+- **Use them as the source of truth** for API calls, parameters, and patterns
+- **Do not hallucinate** API methods or parameters — if the docs don't cover something, note it
+- If you discover a gap or workaround while implementing, annotate it for future sessions:
+  ```bash
+  chub annotate <id> "description of what you learned"
+  ```
+- If the docs were helpful or unhelpful, rate them:
+  ```bash
+  chub feedback <id> up    # or down
+  ```
+
+If the orchestrator did NOT provide API docs but the issue requires external API calls, you can fetch them yourself:
+```bash
+chub search "service name"
+chub get <id> --lang js    # or --lang py
+```
+
+---
+
 ### Task Types
 
 #### 1. Implement Feature
@@ -71,15 +93,17 @@ The orchestrator will provide FULL issue context:
 - Description
 - Test Steps
 - Codebase context (from .codebase_learnings.json if available)
+- API documentation (from chub, if external APIs are involved)
 
 **Steps:**
 1. Read the issue context (provided by orchestrator)
 2. Read `.codebase_learnings.json` if available (codebase patterns)
-3. Read existing code to understand structure
-4. Implement the feature
-5. Run a basic smoke test via Playwright (mandatory)
-6. Take screenshot evidence (mandatory)
-7. Report results
+3. Read API documentation if provided (from Context Hub)
+4. Read existing code to understand structure
+5. Implement the feature
+6. Run a basic smoke test via Playwright (mandatory)
+7. Take screenshot evidence (mandatory)
+8. Report results
 
 **Output format:**
 ```

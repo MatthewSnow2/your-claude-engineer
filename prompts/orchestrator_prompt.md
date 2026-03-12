@@ -139,6 +139,17 @@ Ask **qa agent** (NOT coding agent):
 
 ⚠️ **If FAIL: Stop here. Ask coding agent to fix the regression, then re-run QA.**
 
+**Step 3b: Fetch API Documentation (if needed)**
+If the issue description or app_spec.txt references external APIs or SDKs (e.g., Stripe, Auth0, AWS S3, Clerk, etc.), fetch documentation BEFORE delegating to the coding agent:
+```bash
+# Search for relevant docs
+chub search "stripe"
+
+# Fetch language-specific docs (use py or js based on the project stack)
+chub get stripe/api --lang js
+```
+Include the fetched documentation in the coding agent's context below. This prevents API hallucination.
+
 **Step 4: Implement Feature**
 Pass FULL context to coding agent:
 ```
@@ -148,6 +159,7 @@ Implement Linear issue:
 - Description: [full text from linear agent]
 - Test Steps: [list from linear agent]
 CODEBASE CONTEXT: [from .codebase_learnings.json if available]
+API DOCUMENTATION: [from chub get, if external APIs are involved]
 
 Requirements:
 - Implement the feature

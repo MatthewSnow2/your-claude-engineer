@@ -1,0 +1,77 @@
+# {{PROJECT_NAME}} — API Service
+
+A RESTful API service for {{DOMAIN_DESCRIPTION}}.
+
+## Tech Stack
+- Runtime: Python 3.11+
+- Framework: FastAPI + Pydantic v2
+- Database: SQLite via aiosqlite (async)
+- Testing: pytest + pytest-asyncio + httpx
+
+## Features (6 total)
+
+### 1. Core CRUD Endpoints
+- `POST /api/v1/{{RESOURCE_PLURAL}}` — Create with Pydantic validation
+- `GET /api/v1/{{RESOURCE_PLURAL}}` — List with pagination (limit/offset)
+- `GET /api/v1/{{RESOURCE_PLURAL}}/{id}` — Get by ID (404 if missing)
+- `PUT /api/v1/{{RESOURCE_PLURAL}}/{id}` — Update (partial)
+- `DELETE /api/v1/{{RESOURCE_PLURAL}}/{id}` — Delete (204 response)
+
+### 2. Search and Filtering
+- `GET /api/v1/{{RESOURCE_PLURAL}}?q=term` — Full-text search
+- Filter by {{FILTER_FIELDS}}
+- Sort by any field (asc/desc)
+- Proper query parameter validation
+
+### 3. Health and Info Endpoints
+- `GET /health` — Returns status, uptime, DB connection check
+- `GET /api/v1/info` — Returns version, resource count, schema info
+- Used for monitoring and debugging
+
+### 4. Error Handling
+- Consistent error response format: `{"detail": "message", "code": "ERROR_CODE"}`
+- Custom exception handlers for 400, 404, 409, 422, 500
+- Request validation errors return field-level details
+
+### 5. Database Layer
+- Repository pattern (single class, all DB access)
+- Auto-create tables on startup
+- Migration-safe schema (CREATE TABLE IF NOT EXISTS)
+- Connection pooling via aiosqlite
+
+### 6. Test Suite
+- Tests for every endpoint (happy path + error cases)
+- Fixture for test DB (in-memory SQLite)
+- At least 15 test cases total
+- Run with: `pytest tests/ -v`
+
+## Design Guidelines
+- Follow FastAPI best practices (dependency injection, response models)
+- Type hints everywhere
+- Pydantic models for request/response validation
+- Async throughout
+
+## File Structure
+```
+src/
+  main.py                - FastAPI app, lifespan, router includes
+  models.py              - Pydantic request/response models
+  repository.py          - Database access (Repository singleton)
+  routes.py              - API route handlers
+  exceptions.py          - Custom exceptions and handlers
+data/
+  {{PROJECT_NAME_LOWER}}.db  - SQLite database (auto-created)
+tests/
+  conftest.py            - Fixtures (test client, test DB)
+  test_crud.py           - CRUD endpoint tests
+  test_search.py         - Search/filter tests
+  test_errors.py         - Error handling tests
+pyproject.toml           - Dependencies and pytest config
+```
+
+## Success Criteria
+- All endpoints return correct status codes
+- Pydantic validation rejects bad input with clear errors
+- Search returns relevant results
+- All tests pass: `pytest tests/ -v`
+- API docs auto-generated at `/docs`

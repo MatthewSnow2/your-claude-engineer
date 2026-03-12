@@ -1,0 +1,86 @@
+# {{PROJECT_NAME}} — CRUD Dashboard
+
+A full-stack CRUD dashboard for managing {{ENTITY_PLURAL}}.
+
+## Tech Stack
+- Frontend: Next.js 15 + React 19 + Tailwind CSS + Shadcn/ui
+- Backend: Next.js API routes (App Router)
+- Database: SQLite via better-sqlite3 (local-first)
+- Auth: None (internal tool)
+
+## Features (7 total)
+
+### 1. Data Table View
+- Paginated table of all {{ENTITY_PLURAL}} with sortable columns
+- Column headers: {{COLUMNS}}
+- Show row count and pagination controls
+- Responsive layout for tablet/desktop
+
+### 2. Create {{ENTITY_SINGULAR}}
+- Modal form with validation for all fields
+- Required fields marked with asterisk
+- Toast notification on success
+- Form resets after submission
+
+### 3. Edit {{ENTITY_SINGULAR}}
+- Click row to open edit modal (pre-populated)
+- Same validation as create
+- Toast notification on save
+- Optimistic UI update
+
+### 4. Delete {{ENTITY_SINGULAR}}
+- Confirmation dialog before delete
+- Soft delete (add deleted_at column) or hard delete
+- Toast notification on delete
+- Row removed from table immediately
+
+### 5. Search and Filter
+- Search bar filters across text columns
+- Debounced search (300ms)
+- Clear search button
+- Show "no results" state
+
+### 6. Export to CSV
+- Button to export current filtered view to CSV
+- Filename includes timestamp
+- Uses client-side generation (no server round-trip)
+
+### 7. Dashboard Stats
+- Top cards showing: Total count, Created this week, Created this month
+- Simple bar chart of {{ENTITY_PLURAL}} created per day (last 7 days)
+- Uses recharts or lightweight chart library
+
+## Design Guidelines
+- Dark theme with accent color (#6c7bff)
+- Shadcn/ui components throughout
+- Clean data-dense layout suitable for internal tooling
+- Mobile-friendly but optimized for desktop
+
+## File Structure
+```
+app/
+  layout.tsx
+  page.tsx               - Dashboard with stats
+  {{ENTITY_PLURAL_LOWER}}/
+    page.tsx             - Table view
+    [id]/page.tsx        - Detail view
+  api/{{ENTITY_PLURAL_LOWER}}/
+    route.ts             - GET (list), POST (create)
+    [id]/route.ts        - GET, PUT, DELETE
+components/
+  data-table.tsx
+  create-modal.tsx
+  edit-modal.tsx
+  stats-cards.tsx
+  search-bar.tsx
+lib/
+  db.ts                  - SQLite connection + schema
+  types.ts               - TypeScript interfaces
+```
+
+## Success Criteria
+- All CRUD operations work end-to-end
+- Search filters results in real-time
+- CSV export downloads correctly
+- Dashboard stats reflect actual data
+- No console errors, clean UI

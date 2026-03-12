@@ -1,0 +1,81 @@
+# {{PROJECT_NAME}} — Landing Page
+
+A conversion-focused landing page for {{PRODUCT_DESCRIPTION}}.
+
+## Tech Stack
+- Frontend: Next.js 15 + React 19 + Tailwind CSS
+- Animations: Framer Motion
+- Icons: Lucide React
+- No backend required (static export)
+
+## Features (6 total)
+
+### 1. Hero Section
+- Headline: {{HEADLINE}}
+- Subheadline explaining the value proposition (2 sentences max)
+- Primary CTA button ({{CTA_TEXT}})
+- Hero image or illustration placeholder
+- Subtle gradient background
+
+### 2. Features/Benefits Grid
+- 3-4 feature cards in a responsive grid
+- Each card: icon + title + description (2 lines)
+- Features: {{FEATURE_LIST}}
+- Hover animation on cards
+
+### 3. Social Proof Section
+- 3 testimonial cards with name, role, company, quote
+- Optional: logo bar of client/partner logos
+- Star ratings or trust badges
+
+### 4. How It Works
+- 3-step process visualization
+- Step number + title + description
+- Connected by a visual flow (line or arrows)
+- Icons for each step
+
+### 5. Pricing or CTA Section
+- If pricing: 2-3 tier cards (Free / Pro / Enterprise)
+- If waitlist: email capture form with submit button
+- Clear value differentiation between options
+- "Most Popular" badge on recommended tier
+
+### 6. Footer
+- Company name and tagline
+- Links: About, Contact, Privacy, Terms
+- Social media icon links (placeholder hrefs)
+- Copyright notice
+
+## Design Guidelines
+- Clean, modern SaaS aesthetic
+- Color scheme: {{PRIMARY_COLOR}} primary, neutral grays
+- Large typography for headings (Inter or similar)
+- Generous whitespace
+- Smooth scroll between sections
+- Mobile-first responsive design
+- Dark mode support via Tailwind dark: classes
+
+## File Structure
+```
+app/
+  layout.tsx
+  page.tsx               - Main landing page
+components/
+  hero.tsx
+  features.tsx
+  testimonials.tsx
+  how-it-works.tsx
+  pricing.tsx
+  footer.tsx
+  cta-button.tsx
+public/
+  hero-image.svg         - Placeholder SVG
+```
+
+## Success Criteria
+- Page loads fast (no unnecessary JS)
+- Fully responsive (mobile, tablet, desktop)
+- All sections visible and properly spaced
+- CTA buttons are prominent and clickable
+- Smooth scroll animations work
+- No layout shifts or broken elements

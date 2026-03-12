@@ -43,7 +43,7 @@ def sample_issues() -> list[dict[str, str]]:
 @pytest.fixture
 def gen_ui_issues() -> list[dict[str, str]]:
     """Load real gen-ui-dashboard issues if available."""
-    path = Path("/home/ubuntu/projects/ai-generations/gen-ui-dashboard/.linear_project.json")
+    path = Path("/home/apexaipc/projects/gen-ui-dashboard/.linear_project.json")
     if not path.exists():
         pytest.skip("gen-ui-dashboard data not available")
     with open(path) as f:
