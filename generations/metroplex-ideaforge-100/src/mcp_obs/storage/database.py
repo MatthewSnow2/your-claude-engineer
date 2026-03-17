@@ -104,12 +104,55 @@ class Database:
         Returns:
             AgentSession if found, None otherwise
         """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return None
+
         query = "SELECT * FROM sessions WHERE session_id = ?"
         async with self._connection.execute(query, (session_id,)) as cursor:
             row = await cursor.fetchone()
             if row:
                 return self._row_to_session(row)
         return None
+
+    async def get_session_by_id(self, session_id: str) -> Optional[AgentSession]:
+        """
+        Retrieve a session by ID (alias for get_session).
+
+        Args:
+            session_id: Unique session identifier
+
+        Returns:
+            AgentSession if found, None otherwise
+        """
+        return await self.get_session(session_id)
+
+    async def get_session_tool_calls(self, session_id: str) -> List[ToolCall]:
+        """
+        Get all tool calls for a session ordered by timestamp.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            List of ToolCall instances ordered chronologically
+        """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return []
+
+        query = """
+            SELECT * FROM tool_calls
+            WHERE session_id = ?
+            ORDER BY timestamp ASC
+        """
+
+        tool_calls = []
+        async with self._connection.execute(query, (session_id,)) as cursor:
+            async for row in cursor:
+                tool_calls.append(self._row_to_tool_call(row))
+
+        return tool_calls
 
     async def update_session(self, session: AgentSession) -> None:
         """

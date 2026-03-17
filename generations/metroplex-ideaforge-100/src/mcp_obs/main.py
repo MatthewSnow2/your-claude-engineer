@@ -18,6 +18,7 @@ from .storage.database import Database
 from .storage.models import ToolCallStatus
 from .server.mcp_server import MCPObservabilityServer
 from .analysis.effectiveness_scorer import EffectivenessScorer
+from .dashboard.replay import SessionPlayer
 
 console = Console()
 
@@ -648,6 +649,215 @@ def _display_recommendation(rec: Dict[str, Any]):
     )
     console.print(panel)
     console.print()
+
+
+@cli.command()
+@click.option(
+    "--session",
+    required=True,
+    type=str,
+    help="Session ID to replay",
+)
+@click.option(
+    "--step",
+    type=int,
+    help="Jump to specific step number",
+)
+@click.option(
+    "--failures-only",
+    is_flag=True,
+    help="Show only failure steps",
+)
+def replay(session: str, step: Optional[int], failures_only: bool):
+    """Replay a session step-by-step for debugging."""
+    config = get_config()
+    setup_logging(config.log_level)
+
+    asyncio.run(_replay_session(config, session, step, failures_only))
+
+
+async def _replay_session(
+    config, session_id: str, target_step: Optional[int], failures_only: bool
+):
+    """Async implementation of replay command."""
+    db = Database(config.db_path)
+    await db.initialize()
+
+    try:
+        player = SessionPlayer(db)
+
+        # Load session
+        try:
+            session_info = await player.load_session(session_id)
+        except ValueError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            return
+
+        # Display session header
+        duration_str = f"{session_info['duration_ms']}ms" if session_info['duration_ms'] else "N/A"
+        header = f"""Session Replay: {session_id}
+Total Steps: {session_info['total_steps']} | Duration: {duration_str}"""
+
+        console.print(Panel(header, border_style="cyan", box=box.ROUNDED))
+        console.print()
+
+        # If failures only, show just failures
+        if failures_only:
+            failures = await player.get_failures(session_id)
+            if not failures:
+                console.print("[green]No failures found in this session![/green]")
+                return
+
+            console.print(f"[yellow]Showing {len(failures)} failure(s)[/yellow]\n")
+            for failure in failures:
+                _display_replay_step_failure(failure)
+
+        # If specific step requested, show just that step
+        elif target_step:
+            step_data = await player.get_step(target_step)
+            if not step_data:
+                console.print(f"[red]Step {target_step} not found[/red]")
+                return
+
+            _display_replay_step(step_data, session_info['total_steps'])
+
+        # Otherwise show all steps
+        else:
+            for step_num in range(1, session_info['total_steps'] + 1):
+                step_data = await player.get_step(step_num)
+                if step_data:
+                    _display_replay_step(step_data, session_info['total_steps'])
+
+    finally:
+        await db.close()
+
+
+def _display_replay_step(step: Any, total_steps: int):
+    """Display a single replay step with rich formatting."""
+    # Status emoji
+    status_emoji = {
+        ToolCallStatus.SUCCESS: "✅",
+        ToolCallStatus.FAILURE: "❌",
+        ToolCallStatus.TIMEOUT: "⏱️",
+        ToolCallStatus.RETRY: "↻",
+    }.get(step.tool_call.status, "❓")
+
+    # Build step header
+    console.print(f"\n[bold cyan]Step {step.step_number}/{total_steps}[/bold cyan] " + "─" * 40)
+
+    # Tool info
+    console.print(f"  🔧 Tool: [green]{step.tool_call.tool_name}[/green]")
+    console.print(
+        f"  ⏱️  Time: {step.tool_call.execution_time_ms}ms "
+        f"(elapsed: {step.elapsed_time_ms}ms)"
+    )
+    console.print(
+        f"  📊 Tokens: {step.tool_call.tokens_consumed:,} "
+        f"(cumulative: {step.cumulative_tokens:,})"
+    )
+    console.print(
+        f"  💰 Cost: ${step.tool_call.tokens_consumed / 1_000_000 * 45:.4f} "
+        f"(cumulative: ${step.cumulative_cost:.4f})"
+    )
+    console.print(f"  {status_emoji} Status: [{'green' if step.tool_call.status == ToolCallStatus.SUCCESS else 'red'}]{step.tool_call.status.value}[/]")
+
+    # Context summary
+    if step.context_summary and step.context_summary != "Normal execution":
+        console.print(f"  ℹ️  Context: [yellow]{step.context_summary}[/yellow]")
+
+    # Parameters
+    console.print("\n  [bold]Parameters:[/bold]")
+    for key, value in step.tool_call.parameters.items():
+        value_str = str(value)
+        if len(value_str) > 80:
+            value_str = value_str[:77] + "..."
+        console.print(f"    {key}: {value_str}")
+
+    # Response
+    if step.tool_call.response:
+        console.print("\n  [bold]Response:[/bold]")
+        response_items = list(step.tool_call.response.items())[:5]  # Show first 5 items
+        for key, value in response_items:
+            value_str = str(value)
+            if len(value_str) > 80:
+                value_str = value_str[:77] + "..."
+            console.print(f"    {key}: {value_str}")
+        if len(step.tool_call.response) > 5:
+            console.print(f"    [dim]... and {len(step.tool_call.response) - 5} more fields[/dim]")
+
+    # Error message
+    if step.tool_call.error_message:
+        console.print(f"\n  [bold red]⚠️  Error:[/bold red] {step.tool_call.error_message}")
+
+    # Retry info
+    if step.tool_call.retry_count > 0:
+        console.print(f"  [yellow]Retries: {step.tool_call.retry_count}[/yellow]")
+
+
+def _display_replay_step_failure(failure: Dict[str, Any]):
+    """Display a failure step in compact format."""
+    console.print(f"[bold red]Step {failure['step_number']}[/bold red] - {failure['tool_name']}")
+    console.print(f"  Status: {failure['status']}")
+    console.print(f"  Time: {failure['elapsed_time_ms']}ms into session")
+    if failure['error_message']:
+        console.print(f"  Error: {failure['error_message']}")
+    if failure['retry_count'] > 0:
+        console.print(f"  Retries: {failure['retry_count']}")
+    console.print()
+
+
+@cli.command()
+@click.option(
+    "--session",
+    required=True,
+    type=str,
+    help="Session ID to export",
+)
+@click.option(
+    "--output",
+    type=str,
+    help="Output file path (default: session_<id>.json)",
+)
+def export(session: str, output: Optional[str]):
+    """Export session data as JSON for sharing."""
+    config = get_config()
+    setup_logging(config.log_level)
+
+    asyncio.run(_export_session(config, session, output))
+
+
+async def _export_session(config, session_id: str, output_path: Optional[str]):
+    """Async implementation of export command."""
+    db = Database(config.db_path)
+    await db.initialize()
+
+    try:
+        player = SessionPlayer(db)
+
+        # Set default output path if not provided
+        if not output_path:
+            output_path = f"session_{session_id}.json"
+
+        # Export session
+        try:
+            export_file = await player.export_session(session_id, output_path)
+            console.print(f"[green]✓ Session exported successfully[/green]")
+            console.print(f"  Output file: {export_file}")
+
+            # Show file size
+            import os
+            file_size = os.path.getsize(export_file)
+            size_kb = file_size / 1024
+            console.print(f"  File size: {size_kb:.1f} KB")
+
+        except ValueError as e:
+            console.print(f"[red]Error: {e}[/red]")
+        except Exception as e:
+            console.print(f"[red]Export failed: {e}[/red]")
+            logger.exception("Export error")
+
+    finally:
+        await db.close()
 
 
 if __name__ == "__main__":

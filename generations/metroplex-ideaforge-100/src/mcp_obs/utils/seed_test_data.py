@@ -158,8 +158,130 @@ async def seed_test_data(db_path: Path):
         print("  • database_query: ~60 (moderate issues)")
         print("  • api_call: ~30 (low performer)")
 
+        # Create a special demo session for replay demonstration
+        await create_demo_replay_session(db)
+
     finally:
         await db.close()
+
+
+async def create_demo_replay_session(db: Database):
+    """Create a demo session specifically for replay feature demonstration."""
+    print("\nCreating demo replay session...")
+
+    session_id = "demo-session-001"
+    start_time = datetime.utcnow() - timedelta(hours=1)
+
+    session = AgentSession(
+        session_id=session_id,
+        agent_version="1.0.0-demo",
+        start_time=start_time,
+        end_time=start_time + timedelta(minutes=10),
+        total_tokens=5700,
+        total_cost_usd=0.2565,
+    )
+    await db.create_session(session)
+
+    # Create a realistic sequence of tool calls with a story
+    tool_calls_sequence = [
+        {
+            "tool_name": "file_search",
+            "parameters": {"query": "find config files", "directory": "/home/user/project"},
+            "response": {"files_found": 3, "matches": ["config.json", "settings.yaml", "env.local"]},
+            "status": ToolCallStatus.SUCCESS,
+            "execution_time_ms": 85,
+            "tokens_consumed": 1200,
+            "error_message": None,
+            "offset_seconds": 0,
+        },
+        {
+            "tool_name": "file_read",
+            "parameters": {"path": "/home/user/project/config.json"},
+            "response": {"content": '{"api_key": "***", "endpoint": "https://api.example.com"}'},
+            "status": ToolCallStatus.SUCCESS,
+            "execution_time_ms": 42,
+            "tokens_consumed": 850,
+            "error_message": None,
+            "offset_seconds": 2,
+        },
+        {
+            "tool_name": "api_call",
+            "parameters": {"endpoint": "https://api.example.com/data", "method": "GET"},
+            "response": None,
+            "status": ToolCallStatus.FAILURE,
+            "execution_time_ms": 5000,
+            "tokens_consumed": 500,
+            "error_message": "Connection timeout: host not responding",
+            "offset_seconds": 5,
+        },
+        {
+            "tool_name": "api_call",
+            "parameters": {"endpoint": "https://api.example.com/data", "method": "GET", "timeout": 10},
+            "response": None,
+            "status": ToolCallStatus.FAILURE,
+            "execution_time_ms": 10000,
+            "tokens_consumed": 450,
+            "error_message": "Connection timeout: network unreachable",
+            "offset_seconds": 11,
+        },
+        {
+            "tool_name": "cache_lookup",
+            "parameters": {"key": "api_data_backup"},
+            "response": {"cached": True, "data": {"records": 150}},
+            "status": ToolCallStatus.SUCCESS,
+            "execution_time_ms": 15,
+            "tokens_consumed": 900,
+            "error_message": None,
+            "offset_seconds": 22,
+        },
+        {
+            "tool_name": "database_query",
+            "parameters": {"query": "SELECT * FROM users WHERE active = true", "database": "prod"},
+            "response": {"rows": 42, "execution_time": 234},
+            "status": ToolCallStatus.SUCCESS,
+            "execution_time_ms": 234,
+            "tokens_consumed": 1100,
+            "error_message": None,
+            "offset_seconds": 25,
+        },
+        {
+            "tool_name": "file_write",
+            "parameters": {"path": "/tmp/results.json", "content": "..."},
+            "response": {"bytes_written": 1024},
+            "status": ToolCallStatus.SUCCESS,
+            "execution_time_ms": 28,
+            "tokens_consumed": 700,
+            "error_message": None,
+            "offset_seconds": 28,
+        },
+    ]
+
+    for tc_data in tool_calls_sequence:
+        tool_call = ToolCall(
+            id=f"call-{uuid.uuid4().hex[:12]}",
+            session_id=session_id,
+            tool_name=tc_data["tool_name"],
+            parameters=tc_data["parameters"],
+            response=tc_data["response"],
+            status=tc_data["status"],
+            execution_time_ms=tc_data["execution_time_ms"],
+            tokens_consumed=tc_data["tokens_consumed"],
+            timestamp=start_time + timedelta(seconds=tc_data["offset_seconds"]),
+            error_message=tc_data["error_message"],
+            retry_count=0,
+        )
+        await db.create_tool_call(tool_call)
+
+    # Update session statistics
+    success_count = sum(1 for tc in tool_calls_sequence if tc["status"] == ToolCallStatus.SUCCESS)
+    session.tool_calls_count = len(tool_calls_sequence)
+    session.success_rate = (success_count / len(tool_calls_sequence)) * 100
+    await db.update_session(session)
+
+    print(f"✓ Created demo session: {session_id}")
+    print(f"  - {len(tool_calls_sequence)} tool calls")
+    print(f"  - {success_count} successes, {len(tool_calls_sequence) - success_count} failures")
+    print(f"  - Includes retry scenario and failure recovery")
 
 
 if __name__ == "__main__":

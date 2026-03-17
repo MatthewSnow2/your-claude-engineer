@@ -109,3 +109,18 @@ class CostAnalysis(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+
+
+class ReplayStep(BaseModel):
+    """Step in a session replay."""
+    step_number: int = Field(..., description="Step index in replay timeline")
+    tool_call: ToolCall = Field(..., description="Tool call for this step")
+    elapsed_time_ms: int = Field(..., description="Time since session start in milliseconds")
+    cumulative_tokens: int = Field(..., description="Total tokens consumed up to this step")
+    cumulative_cost: float = Field(..., description="Total cost incurred up to this step")
+    context_summary: str = Field(..., description="Summary of what's happening at this step")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
