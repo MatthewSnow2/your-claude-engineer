@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "name": "yce-harness",
+  "display_name": "YCE Harness",
+  "status": "active",
+  "purpose": "Autonomous AI software engineer powered by Claude Agent SDK. Multi-agent orchestration (Orchestrator routes to Linear, Coding, GitHub, Slack, QA, Code Review agents) with parallel execution via git worktrees. The build engine that Metroplex dispatches work to.",
+  "owner": "matthew",
+  "repo": {
+    "org": "MatthewSnow2",
+    "name": "yce-harness",
+    "default_branch": "main",
+    "visibility": "private"
+  },
+  "local_path": "/home/apexaipc/projects/yce-harness",
+  "tech_stack": {
+    "languages": [
+      "python"
+    ],
+    "frameworks": [
+      "claude-agent-sdk",
+      "arcadepy",
+      "mcp",
+      "pydantic"
+    ],
+    "databases": [],
+    "runtime": "python-3.11"
+  },
+  "dependencies": [
+    {
+      "project": "metroplex",
+      "relationship": "consumes",
+      "description": "Receives build dispatch jobs from Metroplex orchestrator."
+    }
+  ],
+  "health": {
+    "score": 89,
+    "factors": {
+      "recency": 100,
+      "build_pass": 85,
+      "test_coverage": 75,
+      "dependency_freshness": 85
+    },
+    "last_computed": "2026-03-17T04:52:10.330807+00:00"
+  },
+  "activity": {
+    "last_commit": "2026-03-12T16:57:35-05:00",
+    "last_build": {
+      "date": "2026-03-12T16:57:35-05:00",
+      "passed": true,
+      "test_count": 0,
+      "coverage_pct": 0
+    },
+    "commits_30d": 22,
+    "stale_threshold_days": 14
+  },
+  "nudge": {
+    "last_nudge": null,
+    "suppressed_until": null,
+    "history": []
+  },
+  "extensions": {
+    "pipeline": {
+      "stages": [
+        "plan",
+        "code",
+        "test",
+        "review",
+        "merge"
+      ],
+      "current_stage": null,
+      "builds_total": 0,
+      "builds_passed": 0,
+      "last_failure_reason": null
+    }
+  }
+}
