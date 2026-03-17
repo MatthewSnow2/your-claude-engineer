@@ -4,7 +4,7 @@ import asyncio
 import logging
 import sys
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import click
 from rich.console import Console
@@ -17,6 +17,7 @@ from .utils.config import get_config
 from .storage.database import Database
 from .storage.models import ToolCallStatus
 from .server.mcp_server import MCPObservabilityServer
+from .analysis.effectiveness_scorer import EffectivenessScorer
 
 console = Console()
 
@@ -419,6 +420,234 @@ def _display_session_table(session, stats, tool_calls):
     if tool_calls:
         console.print("\n")
         _display_trace_table(tool_calls)
+
+
+@cli.command()
+@click.option(
+    "--tool",
+    type=str,
+    help="Analyze specific tool (if not provided, shows all tools)",
+)
+@click.option(
+    "--window",
+    type=int,
+    default=24,
+    help="Time window in hours (default: 24)",
+)
+def analyze(tool: Optional[str], window: int):
+    """Analyze tool effectiveness and show scores."""
+    config = get_config()
+    setup_logging(config.log_level)
+
+    asyncio.run(_analyze_tools(config, tool, window))
+
+
+async def _analyze_tools(config, tool_name: Optional[str], window_hours: int):
+    """Async implementation of analyze command."""
+    db = Database(config.db_path)
+    await db.initialize()
+
+    try:
+        scorer = EffectivenessScorer(db)
+
+        if tool_name:
+            # Analyze specific tool
+            metric = await scorer.calculate_tool_score(tool_name, window_hours)
+            if not metric:
+                console.print(f"[yellow]No data found for tool '{tool_name}' in last {window_hours} hours[/yellow]")
+                return
+
+            _display_tool_analysis(metric)
+        else:
+            # Analyze all tools
+            metrics = await scorer.get_all_tool_scores(window_hours)
+            if not metrics:
+                console.print(f"[yellow]No tool call data found in last {window_hours} hours[/yellow]")
+                return
+
+            _display_all_tools_table(metrics, window_hours)
+
+    finally:
+        await db.close()
+
+
+def _display_tool_analysis(metric):
+    """Display detailed analysis for a single tool."""
+    # Determine score color
+    if metric.effectiveness_score >= 70:
+        score_style = "green"
+    elif metric.effectiveness_score >= 50:
+        score_style = "yellow"
+    else:
+        score_style = "red"
+
+    # Create detailed panel
+    content = f"""[bold]Tool Name:[/bold] {metric.tool_name}
+[bold]Effectiveness Score:[/bold] [{score_style}]{metric.effectiveness_score:.1f}/100[/{score_style}]
+[bold]Trend:[/bold] {metric.trend}
+[bold]Measurement Window:[/bold] {metric.measurement_window_hours} hours
+
+[bold cyan]Performance Metrics:[/bold cyan]
+  • Total Calls: {metric.total_calls}
+  • Success Count: {metric.success_count} ({(metric.success_count/metric.total_calls*100) if metric.total_calls > 0 else 0:.1f}%)
+  • Failure Count: {metric.failure_count}
+  • Timeout Count: {metric.timeout_count}
+  • Retry Count: {metric.retry_count}
+  • Avg Execution Time: {metric.average_execution_ms:.0f}ms
+"""
+
+    if metric.failure_patterns:
+        content += "\n[bold yellow]Failure Patterns:[/bold yellow]\n"
+        for pattern in metric.failure_patterns:
+            content += f"  • {pattern}\n"
+
+    if metric.improvement_suggestions:
+        content += "\n[bold green]Improvement Suggestions:[/bold green]\n"
+        for suggestion in metric.improvement_suggestions:
+            content += f"  • {suggestion}\n"
+
+    panel = Panel(
+        content,
+        title=f"Tool Effectiveness Analysis: {metric.tool_name}",
+        border_style="cyan",
+        box=box.ROUNDED,
+    )
+    console.print(panel)
+
+
+def _display_all_tools_table(metrics, window_hours: int):
+    """Display effectiveness scores for all tools in table format."""
+    table = Table(
+        title=f"Tool Effectiveness Scores (Last {window_hours} hours)",
+        box=box.ROUNDED,
+    )
+
+    table.add_column("Tool Name", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_column("Calls", justify="right", style="blue")
+    table.add_column("Success Rate", justify="right", style="green")
+    table.add_column("Avg Time (ms)", justify="right", style="magenta")
+    table.add_column("Trend", style="yellow")
+
+    for metric in metrics:
+        # Determine score color
+        if metric.effectiveness_score >= 70:
+            score_color = "green"
+        elif metric.effectiveness_score >= 50:
+            score_color = "yellow"
+        else:
+            score_color = "red"
+
+        score_display = f"[{score_color}]{metric.effectiveness_score:.1f}[/{score_color}]"
+
+        success_rate = (metric.success_count / metric.total_calls * 100) if metric.total_calls > 0 else 0
+
+        # Trend with emoji
+        trend_display = {
+            "improving": "↑ improving",
+            "stable": "→ stable",
+            "degrading": "↓ degrading",
+        }.get(metric.trend, metric.trend)
+
+        table.add_row(
+            metric.tool_name,
+            score_display,
+            str(metric.total_calls),
+            f"{success_rate:.1f}%",
+            f"{metric.average_execution_ms:.0f}",
+            trend_display,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]Showing {len(metrics)} tool(s)[/dim]")
+
+
+@cli.command()
+def recommend():
+    """Generate tool improvement recommendations."""
+    config = get_config()
+    setup_logging(config.log_level)
+
+    asyncio.run(_generate_recommendations(config))
+
+
+async def _generate_recommendations(config):
+    """Async implementation of recommend command."""
+    db = Database(config.db_path)
+    await db.initialize()
+
+    try:
+        scorer = EffectivenessScorer(db)
+        recommendations = await scorer.generate_recommendations()
+
+        if not recommendations:
+            console.print("[green]✓ All tools are performing well! No recommendations at this time.[/green]")
+            return
+
+        # Group by severity
+        critical = [r for r in recommendations if r["severity"] == "critical"]
+        warning = [r for r in recommendations if r["severity"] == "warning"]
+        info = [r for r in recommendations if r["severity"] == "info"]
+
+        # Display critical recommendations
+        if critical:
+            console.print("\n[bold red]CRITICAL - Tools Requiring Immediate Attention:[/bold red]")
+            for rec in critical:
+                _display_recommendation(rec)
+
+        # Display warning recommendations
+        if warning:
+            console.print("\n[bold yellow]WARNING - Tools Requiring Optimization:[/bold yellow]")
+            for rec in warning:
+                _display_recommendation(rec)
+
+        # Display info recommendations
+        if info:
+            console.print("\n[bold blue]INFO - Tools to Monitor:[/bold blue]")
+            for rec in info:
+                _display_recommendation(rec)
+
+        console.print(f"\n[dim]Generated {len(recommendations)} recommendation(s)[/dim]")
+
+    finally:
+        await db.close()
+
+
+def _display_recommendation(rec: Dict[str, Any]):
+    """Display a single recommendation."""
+    severity_colors = {
+        "critical": "red",
+        "warning": "yellow",
+        "info": "blue",
+    }
+
+    color = severity_colors.get(rec["severity"], "white")
+
+    content = f"""[bold]Tool:[/bold] {rec['tool_name']}
+[bold]Score:[/bold] {rec['score']:.1f}/100
+[bold]Category:[/bold] {rec['category']}
+
+[bold]Message:[/bold]
+{rec['message']}
+"""
+
+    if rec.get("suggestions"):
+        content += "\n[bold]Suggestions:[/bold]\n"
+        for suggestion in rec["suggestions"]:
+            content += f"  • {suggestion}\n"
+
+    if rec.get("failure_patterns"):
+        content += "\n[bold]Common Failures:[/bold]\n"
+        for pattern in rec["failure_patterns"][:3]:  # Show top 3
+            content += f"  • {pattern}\n"
+
+    panel = Panel(
+        content,
+        border_style=color,
+        box=box.ROUNDED,
+    )
+    console.print(panel)
+    console.print()
 
 
 if __name__ == "__main__":

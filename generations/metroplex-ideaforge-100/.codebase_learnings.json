@@ -1,0 +1,37 @@
+{
+  "project": "MCP Observability Layer",
+  "tech_stack": "Python 3.11+, asyncio, MCP SDK, Rich + Textual, SQLite (aiosqlite), Pydantic, Click",
+  "last_updated": "2026-03-17",
+  "codebase_patterns": {
+    "architecture": "Async-first with asyncio. All I/O uses async/await with aiosqlite for DB ops.",
+    "cli_framework": "Click with subcommands. Rich library for terminal output (tables, trees, panels).",
+    "data_models": "Pydantic v2 with Field descriptors for validation. ISO format timestamps.",
+    "database": "SQLite via aiosqlite. Migration-based schema in storage/migrations/. JSON stored in TEXT fields.",
+    "file_structure": "src/mcp_obs/ with subdirs: server/, storage/, utils/, dashboard/, analysis/, alerts/",
+    "imports": "Use 'from src.mcp_obs...' when running as module, 'from mcp_obs...' when installed as package"
+  },
+  "common_mistakes_to_avoid": [
+    "Database connection may be None if initialize() not called - always add guard checks before using self._connection",
+    "Pydantic fields with defaults should use Optional[T] type annotation if the field can be None",
+    "Network message handling needs input validation - add max message size and timeout for reader.readline()",
+    "Token estimation using len(str)//4 is rough - document as approximation, consider tiktoken for accuracy",
+    "Don't leave temp test files in project root - clean up test_*.py, *_output.txt, *_SUMMARY.md files",
+    "SQL parameters list should handle both str and int types correctly when extending params list"
+  ],
+  "effective_patterns": [
+    "Migration-based SQL schema with version tracking in metadata table",
+    "Foreign key CASCADE DELETE for child records (tool_calls -> sessions)",
+    "Comprehensive indexing for common query patterns (session_id, tool_name, timestamp)",
+    "Async context managers for resource lifecycle management",
+    "Rich Tree widget for hierarchical status display",
+    "Rich Table for structured data output with styled columns"
+  ],
+  "sessions": [
+    {
+      "session": 1,
+      "date": "2026-03-17",
+      "completed": ["M2A-227: Real-Time Agent Execution Tracing"],
+      "review_findings": "WARN - Database connection guards needed, input validation on network messages, type annotation improvements"
+    }
+  ]
+}

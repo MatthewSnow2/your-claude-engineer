@@ -58,10 +58,14 @@ class ToolEffectivenessMetric(BaseModel):
     measurement_window_hours: int = Field(..., description="Analysis time window")
     total_calls: int = Field(..., description="Total calls in window")
     success_count: int = Field(..., description="Successful calls")
+    failure_count: int = Field(..., description="Failed calls")
+    timeout_count: int = Field(..., description="Timed out calls")
+    retry_count: int = Field(..., description="Retry attempts")
     average_execution_ms: float = Field(..., description="Average execution time")
     effectiveness_score: float = Field(..., description="Calculated effectiveness score 0-100")
     failure_patterns: List[str] = Field(default_factory=list, description="Common failure types")
     improvement_suggestions: List[str] = Field(default_factory=list, description="Optimization recommendations")
+    trend: str = Field(default="stable", description="Trend: improving, stable, or degrading")
     last_calculated: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:

@@ -351,6 +351,182 @@ class Database:
         logger.info(f"Cleaned up {deleted_count} old sessions")
         return deleted_count
 
+    # Tool effectiveness analysis methods
+
+    async def get_unique_tools(self) -> List[str]:
+        """
+        Get list of all unique tool names in the database.
+
+        Returns:
+            List of unique tool names
+        """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return []
+
+        query = "SELECT DISTINCT tool_name FROM tool_calls ORDER BY tool_name"
+        tool_names = []
+
+        async with self._connection.execute(query) as cursor:
+            async for row in cursor:
+                tool_names.append(row["tool_name"])
+
+        return tool_names
+
+    async def get_tool_calls_by_tool(
+        self,
+        tool_name: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> List[ToolCall]:
+        """
+        Get all tool calls for a specific tool within a time window.
+
+        Args:
+            tool_name: Name of the tool
+            start_time: Start of time window
+            end_time: End of time window
+
+        Returns:
+            List of ToolCall instances
+        """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return []
+
+        query = """
+            SELECT * FROM tool_calls
+            WHERE tool_name = ?
+            AND timestamp >= ?
+            AND timestamp <= ?
+            ORDER BY timestamp ASC
+        """
+
+        tool_calls = []
+        async with self._connection.execute(
+            query,
+            (tool_name, start_time.isoformat(), end_time.isoformat())
+        ) as cursor:
+            async for row in cursor:
+                tool_calls.append(self._row_to_tool_call(row))
+
+        return tool_calls
+
+    async def get_tool_call_stats(
+        self, tool_name: str, window_hours: int
+    ) -> Dict[str, Any]:
+        """
+        Get aggregated statistics for a tool within a time window.
+
+        Args:
+            tool_name: Name of the tool
+            window_hours: Time window in hours
+
+        Returns:
+            Dictionary with aggregated statistics
+        """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return {}
+
+        start_time = datetime.utcnow() - timedelta(hours=window_hours)
+
+        query = """
+            SELECT
+                COUNT(*) as total_calls,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) as failure_count,
+                SUM(CASE WHEN status = 'timeout' THEN 1 ELSE 0 END) as timeout_count,
+                SUM(CASE WHEN status = 'retry' THEN 1 ELSE 0 END) as retry_count,
+                AVG(execution_time_ms) as avg_execution_time,
+                SUM(retry_count) as total_retries
+            FROM tool_calls
+            WHERE tool_name = ?
+            AND timestamp >= ?
+        """
+
+        async with self._connection.execute(
+            query, (tool_name, start_time.isoformat())
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "total_calls": row["total_calls"] or 0,
+                    "success_count": row["success_count"] or 0,
+                    "failure_count": row["failure_count"] or 0,
+                    "timeout_count": row["timeout_count"] or 0,
+                    "retry_count": row["total_retries"] or 0,
+                    "avg_execution_time": row["avg_execution_time"] or 0.0,
+                }
+
+        return {}
+
+    async def get_retry_sequences(self, tool_name: str) -> List[Dict[str, Any]]:
+        """
+        Find consecutive calls to the same tool (potential retry sequences).
+
+        Args:
+            tool_name: Name of the tool to analyze
+
+        Returns:
+            List of retry sequence dictionaries
+        """
+        if not self._connection:
+            logger.error("Database connection not initialized")
+            return []
+
+        # Get all tool calls for this tool, ordered by session and timestamp
+        query = """
+            SELECT session_id, timestamp, status
+            FROM tool_calls
+            WHERE tool_name = ?
+            ORDER BY session_id, timestamp
+        """
+
+        sequences = []
+        current_sequence = []
+        last_session = None
+
+        async with self._connection.execute(query, (tool_name,)) as cursor:
+            async for row in cursor:
+                session_id = row["session_id"]
+                timestamp = datetime.fromisoformat(row["timestamp"])
+                status = row["status"]
+
+                if session_id != last_session:
+                    # New session, save previous sequence if it had retries
+                    if len(current_sequence) > 1:
+                        time_span = (current_sequence[-1]["timestamp"] - current_sequence[0]["timestamp"]).total_seconds()
+                        eventual_success = current_sequence[-1]["status"] == "success"
+
+                        sequences.append({
+                            "session_id": last_session,
+                            "sequence_length": len(current_sequence),
+                            "time_span_seconds": time_span,
+                            "eventual_success": eventual_success,
+                        })
+
+                    # Reset for new session
+                    current_sequence = [{"timestamp": timestamp, "status": status}]
+                    last_session = session_id
+                else:
+                    # Same session, add to sequence
+                    current_sequence.append({"timestamp": timestamp, "status": status})
+
+        # Don't forget the last sequence
+        if len(current_sequence) > 1:
+            time_span = (current_sequence[-1]["timestamp"] - current_sequence[0]["timestamp"]).total_seconds()
+            eventual_success = current_sequence[-1]["status"] == "success"
+
+            sequences.append({
+                "session_id": last_session,
+                "sequence_length": len(current_sequence),
+                "time_span_seconds": time_span,
+                "eventual_success": eventual_success,
+            })
+
+        return sequences
+
     # Helper methods
 
     def _row_to_session(self, row: aiosqlite.Row) -> AgentSession:
