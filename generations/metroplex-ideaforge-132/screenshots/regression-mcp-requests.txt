@@ -1,0 +1,98 @@
+=== MCP Initialize Request ===
+{
+    "jsonrpc": "2.0",
+    "result": {
+        "protocolVersion": "1.0.0",
+        "serverInfo": {
+            "name": "SkillHub MCP Server",
+            "version": "0.1.0"
+        },
+        "capabilities": {
+            "tools": {
+                "listChanged": false
+            }
+        }
+    },
+    "id": 1
+}
+
+=== MCP Tools List ===
+{
+    "jsonrpc": "2.0",
+    "result": {
+        "tools": [
+            {
+                "name": "demo-skill.greet_user",
+                "description": "Greet a user by name",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ]
+                }
+            },
+            {
+                "name": "demo-skill.calculate",
+                "description": "Perform basic arithmetic operations",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": [
+                                "add",
+                                "subtract",
+                                "multiply",
+                                "divide"
+                            ]
+                        },
+                        "a": {
+                            "type": "number"
+                        },
+                        "b": {
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "operation",
+                        "a",
+                        "b"
+                    ]
+                }
+            },
+            {
+                "name": "qa-test-skill.greet_user",
+                "description": "Greet a user by name",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ]
+                }
+            }
+        ]
+    },
+    "id": 2
+}
+
+=== MCP Tool Call (qa-test-skill.greet_user) ===
+{
+    "jsonrpc": "2.0",
+    "result": {
+        "status": "success",
+        "result": {
+            "greeting": "Hello, Final Test!"
+        }
+    },
+    "id": 3
+}

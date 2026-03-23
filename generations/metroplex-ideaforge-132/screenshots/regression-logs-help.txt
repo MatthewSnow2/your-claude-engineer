@@ -1,0 +1,9 @@
+Usage: python -m skillhub.cli.main logs [OPTIONS] COMMAND [ARGS]...
+
+  View skill execution logs and history.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  execution-history  Show skill execution audit trail.

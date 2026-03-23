@@ -1,12 +1,13 @@
 """Core functionality for SkillHub CLI."""
 
+from .mcp_server import ExecutionLog, MCPServer, SkillExecutor
 from .models import (
-    SkillManifest,
-    SkillCapability,
-    MCPToolDefinition,
     AgentCompatibility,
-    SkillPackage,
+    MCPToolDefinition,
     RegistryEntry,
+    SkillCapability,
+    SkillManifest,
+    SkillPackage,
 )
 
 __all__ = [
@@ -16,4 +17,7 @@ __all__ = [
     "AgentCompatibility",
     "SkillPackage",
     "RegistryEntry",
+    "MCPServer",
+    "SkillExecutor",
+    "ExecutionLog",
 ]

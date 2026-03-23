@@ -1,0 +1,166 @@
+CODE REVIEW FIXES - CODE SNIPPETS
+==================================
+
+1. HTTP REQUEST SIZE VALIDATION (CRITICAL)
+-------------------------------------------
+File: src/skillhub/core/mcp_server.py
+
+Added constant:
+    MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10MB
+
+Modified do_POST method:
+    def do_POST(self):
+        """Handle POST requests (JSON-RPC 2.0)."""
+        try:
+            content_length = int(self.headers["Content-Length"])
+
+            # Validate request size before reading
+            if content_length > MAX_REQUEST_SIZE:
+                self.send_error(413, "Request too large")
+                return
+
+            post_data = self.rfile.read(content_length)
+            ...
+
+
+2. LOG FILE ROTATION (HIGH)
+----------------------------
+File: src/skillhub/core/mcp_server.py
+
+Added constants:
+    MAX_LOG_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_LOG_FIELD_SIZE = 10000  # characters
+    MAX_ROTATED_LOGS = 5
+
+Added rotation method:
+    def _rotate_log_if_needed(self):
+        """Rotate log file if it exceeds maximum size."""
+        if not self.log_file.exists():
+            return
+
+        file_size = self.log_file.stat().st_size
+        if file_size < MAX_LOG_FILE_SIZE:
+            return
+
+        # Rotate existing log files
+        for i in range(MAX_ROTATED_LOGS - 1, 0, -1):
+            old_log = self.log_dir / f"execution.{i}.jsonl"
+            new_log = self.log_dir / f"execution.{i + 1}.jsonl"
+            if old_log.exists():
+                if i == MAX_ROTATED_LOGS - 1:
+                    old_log.unlink()  # Delete oldest
+                else:
+                    old_log.rename(new_log)
+
+        # Rename current log to .1
+        self.log_file.rename(self.log_dir / "execution.1.jsonl")
+
+Modified log_execution method:
+    def log_execution(self, ...):
+        # Rotate log if it exceeds maximum size
+        self._rotate_log_if_needed()
+        
+        # Truncate result and error fields to prevent unbounded growth
+        if result is not None:
+            result_str = json.dumps(result)
+            if len(result_str) > MAX_LOG_FIELD_SIZE:
+                log_entry["result"] = result_str[:MAX_LOG_FIELD_SIZE] + "... [truncated]"
+            else:
+                log_entry["result"] = result
+        if error is not None:
+            if len(error) > MAX_LOG_FIELD_SIZE:
+                log_entry["error"] = error[:MAX_LOG_FIELD_SIZE] + "... [truncated]"
+            else:
+                log_entry["error"] = error
+
+
+3. THREADING LOCK (MEDIUM)
+---------------------------
+File: src/skillhub/core/mcp_server.py
+
+Added lock in __init__:
+    def __init__(self, ...):
+        ...
+        # Threading lock for hot-reload safety
+        self._lock = threading.RLock()
+
+        # Tool registry: tool_name -> (skill_name, tool_definition)
+        self.tools: Dict[str, Tuple[str, MCPToolDefinition]] = {}
+
+Protected methods with lock:
+    def _register_skill(self, cached_skill: CachedSkillInfo):
+        with self._lock:
+            skill_name = cached_skill.name
+            ...
+
+    def _unregister_skill(self, skill_name: str):
+        with self._lock:
+            if skill_name in self.skill_tools:
+                ...
+
+    def _check_reload(self):
+        with self._lock:
+            installed_skills = self.cache_manager.list_installed()
+            ...
+
+    def _handle_list_tools(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            tools_list = []
+            ...
+
+    def _handle_call_tool(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+
+        with self._lock:
+            if tool_name not in self.tools:
+                raise ValueError(f"Tool not found: {tool_name}")
+            skill_name, tool_def = self.tools[tool_name]
+        ...
+
+
+4. RELOAD INTERVAL CONSTANT (LOW)
+----------------------------------
+File: src/skillhub/core/mcp_server.py
+
+Added constant:
+    RELOAD_CHECK_INTERVAL_SECONDS = 2
+
+Modified reload thread:
+    def _start_reload_thread(self):
+        def reload_loop():
+            while self.reload:
+                time.sleep(RELOAD_CHECK_INTERVAL_SECONDS)
+                ...
+
+
+5. PORT VALIDATION (LOW)
+-------------------------
+File: src/skillhub/cli/commands/serve.py
+
+Added validation:
+    def serve(mcp_port: int, host: str, reload: bool, cache_dir: Optional[Path], verbose: bool):
+        # Validate port range
+        if not (1 <= mcp_port <= 65535):
+            click.echo(
+                f"Error: Port must be in range 1-65535, got {mcp_port}",
+                err=True,
+            )
+            raise click.Abort()
+
+        try:
+            server = MCPServer(...)
+            ...
+
+
+6. TYPE ANNOTATION CONSISTENCY (MEDIUM)
+----------------------------------------
+File: src/skillhub/core/mcp_server.py
+
+Added import:
+    from typing import Any, Dict, List, Optional, Tuple
+
+Changed type annotation:
+    # Before: Dict[str, tuple[str, MCPToolDefinition]]
+    # After:  Dict[str, Tuple[str, MCPToolDefinition]]
+    self.tools: Dict[str, Tuple[str, MCPToolDefinition]] = {}

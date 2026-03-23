@@ -1,0 +1,140 @@
+================================================================================
+M2A-283 REGRESSION TEST REPORT
+Feature 3: MCP-Native Skill Execution for SkillHub CLI
+Test Date: 2026-03-23
+Tester: QA Agent
+================================================================================
+
+OVERALL RESULT: PASS
+
+================================================================================
+TEST SUITE SUMMARY
+================================================================================
+
+1. FULL TEST SUITE (78 tests)
+   Status: PASS
+   All 78 tests passed successfully in 1.79s
+   Evidence: screenshots/regression-test-full-suite.txt
+
+2. CLI COMMANDS
+   Status: PASS
+   - skillhub --help: Shows all commands including serve and logs
+   - skillhub serve --help: Shows correct options (--mcp-port, --reload, etc.)
+   - skillhub logs --help: Shows execution-history subcommand
+   Evidence: 
+   - screenshots/regression-cli-help.txt
+   - screenshots/regression-serve-help.txt
+   - screenshots/regression-logs-help.txt
+
+3. MCP SERVER FUNCTIONALITY
+   Status: PASS
+   
+   3a. Server Startup
+       - Started successfully on port 9876
+       - No errors in startup logs
+   
+   3b. MCP Initialize Request
+       - Returns protocolVersion: "1.0.0"
+       - Returns serverInfo with name and version
+       - Returns capabilities with tools support
+   
+   3c. MCP Tools List
+       - Lists 3 tools (demo-skill x2, qa-test-skill x1)
+       - Each tool has name, description, and inputSchema
+       - Schemas are properly formatted with required fields
+   
+   3d. MCP Tool Execution
+       - Called qa-test-skill.greet_user successfully
+       - Returned status: "success"
+       - Returned correct result: {"greeting": "Hello, Final Test!"}
+   
+   Evidence: screenshots/regression-mcp-requests.txt
+
+4. EXECUTION LOGGING
+   Status: PASS
+   - skillhub logs execution-history works without errors
+   - Shows skill execution history with all details
+   - --limit flag works correctly
+   - Logs include: timestamp, skill name, tool name, status, duration, parameters, result
+   - Latest execution (qa-test-skill.greet_user) is recorded
+   Evidence: screenshots/regression-execution-history.txt
+
+5. HOT-RELOAD FUNCTIONALITY
+   Status: PASS (Unit Test)
+   - test_mcp_server_hot_reload passes
+   - --reload flag is recognized in serve command
+   - Hot-reload is implemented in MCPServer class
+
+================================================================================
+REGRESSION TESTS (EXISTING FEATURES)
+================================================================================
+
+FEATURE 1: Agent Skill Publishing
+   Status: PASS
+   - Created test skill successfully
+   - skillhub publish works with validation
+   - Skill packaged and published to local registry
+   - Checksum calculated correctly
+
+FEATURE 2: Skill Discovery and Installation
+   Status: PASS
+   - skillhub search finds published skills
+   - skillhub install downloads and installs skills
+   - skillhub list --installed shows 3 installed skills
+   - All installed skills have correct metadata
+
+================================================================================
+FEATURE VERIFICATION CHECKLIST (from spec)
+================================================================================
+
+[PASS] 1. skillhub serve --mcp-port 3000
+        - Starts MCP server exposing installed skills
+        - Server binds to specified port
+        - Loads all installed skills from cache
+
+[PASS] 2. Connect to MCP endpoint
+        - Agent discovers available skills via tools/list
+        - Returns 3 tools from installed skills
+        - Each tool has proper MCP schema
+
+[PASS] 3. Execute skill via MCP call
+        - tools/call method works correctly
+        - Returns structured results
+        - Execution completes successfully
+
+[PASS] 4. skillhub logs execution-history
+        - Shows skill execution audit trail
+        - Displays timestamp, skill, tool, status, duration
+        - Shows parameters and results
+        - Supports --limit flag
+
+[PASS] 5. Hot-reload works
+        - --reload flag available in serve command
+        - Unit test for hot-reload passes
+        - Implementation verified in code
+
+================================================================================
+ISSUES FOUND
+================================================================================
+
+None. All tests passed successfully.
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Feature 3 (M2A-283) - MCP-Native Skill Execution is FULLY FUNCTIONAL.
+
+All acceptance criteria met:
+- MCP server starts and exposes installed skills
+- Skills discoverable via tools/list
+- Skills executable via tools/call
+- Execution history logged and queryable
+- Hot-reload functionality implemented
+- No regressions in existing features (Feature 1 & 2)
+
+The implementation is production-ready.
+
+================================================================================
+END OF REPORT
+================================================================================

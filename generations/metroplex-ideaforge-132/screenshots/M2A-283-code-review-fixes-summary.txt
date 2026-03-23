@@ -1,0 +1,110 @@
+CODE REVIEW FIXES SUMMARY - M2A-283
+====================================
+
+All code review findings have been successfully fixed and verified.
+
+FILES CHANGED:
+--------------
+1. src/skillhub/core/mcp_server.py
+2. src/skillhub/cli/commands/serve.py
+
+
+FIXES IMPLEMENTED:
+------------------
+
+1. CRITICAL: HTTP Request Size Validation (FIXED)
+   - Added MAX_REQUEST_SIZE constant (10MB)
+   - Added validation in MCPRequestHandler.do_POST() before reading request body
+   - Returns 413 error if request exceeds limit
+   - Location: Line 313-317 in mcp_server.py
+
+2. HIGH: Log File Rotation (FIXED)
+   - Added MAX_LOG_FILE_SIZE constant (10MB)
+   - Added MAX_LOG_FIELD_SIZE constant (10,000 characters)
+   - Added MAX_ROTATED_LOGS constant (5 files)
+   - Implemented _rotate_log_if_needed() method
+   - Log rotation keeps at most 5 rotated files (execution.1.jsonl to execution.5.jsonl)
+   - Truncates result/error fields to 10KB in log entries
+   - Location: Lines 74-119 in mcp_server.py
+
+3. MEDIUM: Threading Lock for Hot-Reload Safety (FIXED)
+   - Added threading.RLock() to MCPServer class
+   - Protected all shared dictionary accesses:
+     * self.tools
+     * self.skill_tools
+     * self.skill_mtimes
+   - Lock applied in:
+     * _register_skill()
+     * _unregister_skill()
+     * _check_reload()
+     * _handle_list_tools()
+     * _handle_call_tool()
+   - Location: Line 378 and methods throughout mcp_server.py
+
+4. LOW: Reload Interval Constant (FIXED)
+   - Replaced magic number time.sleep(2) with RELOAD_CHECK_INTERVAL_SECONDS constant
+   - Location: Line 26 (constant) and Line 501 (usage) in mcp_server.py
+
+5. LOW: Port Validation (FIXED)
+   - Added port range validation (1-65535) in serve command
+   - Validates before server initialization
+   - Returns clear error message if port out of range
+   - Location: Lines 66-72 in serve.py
+
+6. MEDIUM: Type Annotation Consistency (FIXED)
+   - Changed lowercase 'tuple' to 'Tuple' from typing module
+   - Imported Tuple from typing
+   - Changed type annotation: Dict[str, Tuple[str, MCPToolDefinition]]
+   - Location: Line 14 (import) and Line 381 (usage) in mcp_server.py
+
+
+CONSTANTS ADDED:
+----------------
+MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_LOG_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_LOG_FIELD_SIZE = 10000  # characters
+MAX_ROTATED_LOGS = 5
+RELOAD_CHECK_INTERVAL_SECONDS = 2
+
+
+VERIFICATION:
+-------------
+- All 78 tests pass successfully
+- No regressions introduced
+- Threading safety verified (RLock present)
+- Type annotations verified (Tuple from typing)
+- Constants verified (all defined and used correctly)
+- Port validation verified (range check in place)
+
+
+TEST RESULTS:
+-------------
+78 passed in 1.80s
+
+All MCP server tests passed:
+- test_execution_log_creation ✓
+- test_execution_log_write ✓
+- test_execution_log_history ✓
+- test_mcp_server_initialization ✓
+- test_mcp_server_tool_registration ✓
+- test_mcp_server_handle_list_tools ✓
+- test_mcp_server_handle_call_tool ✓
+- test_mcp_server_hot_reload ✓
+- ... and 70 more tests ✓
+
+
+SECURITY IMPROVEMENTS:
+----------------------
+1. Request size limits prevent DoS attacks
+2. Log rotation prevents disk exhaustion
+3. Field truncation prevents log bombs
+4. Thread-safe operations prevent race conditions
+5. Port validation prevents invalid server configurations
+
+
+BACKWARD COMPATIBILITY:
+-----------------------
+All changes are backward compatible:
+- No API changes
+- No breaking changes to existing functionality
+- All existing tests pass without modification

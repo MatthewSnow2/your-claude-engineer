@@ -1,0 +1,25 @@
+Usage: python -m skillhub.cli.main serve [OPTIONS]
+
+  Start MCP server exposing installed skills.
+
+  The MCP (Model Context Protocol) server allows Claude Code and other MCP-
+  compatible agents to discover and execute installed skills directly without
+  manual installation steps.
+
+  Examples:
+
+      # Start server on default port     skillhub serve
+
+      # Start with hot-reload for development     skillhub serve --reload
+
+      # Start on custom port with verbose logging     skillhub serve --mcp-
+      port 8080 --verbose
+
+Options:
+  --mcp-port INTEGER     MCP server port (default: 3000)  [default: 3000]
+  --host TEXT            Server host (default: localhost)  [default:
+                         localhost]
+  --reload               Enable hot-reload for development
+  --cache-dir DIRECTORY  Custom cache directory (defaults to ~/.skillhub)
+  --verbose              Enable verbose logging
+  --help                 Show this message and exit.

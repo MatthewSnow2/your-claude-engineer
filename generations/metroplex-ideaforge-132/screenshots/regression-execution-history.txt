@@ -1,0 +1,31 @@
+
+Skill Execution History
+================================================================================
+
+[1] 2026-03-23 12:49:31 UTC
+    Skill: qa-test-skill
+    Tool: qa-test-skill.greet_user
+    Status: SUCCESS
+    Duration: 0.003s
+    Parameters: name=QA Tester
+    Result: {'greeting': 'Hello, QA Tester!'}
+
+[2] 2026-03-23 12:50:24 UTC
+    Skill: test-skill
+    Tool: test-skill.test_tool
+    Status: SUCCESS
+    Duration: 0.002s
+    Parameters: input=test
+    Result: {'result': 'Processed: test'}
+
+[3] 2026-03-23 12:50:45 UTC
+    Skill: qa-test-skill
+    Tool: qa-test-skill.greet_user
+    Status: SUCCESS
+    Duration: 0.002s
+    Parameters: name=Final Test
+    Result: {'greeting': 'Hello, Final Test!'}
+
+================================================================================
+Showing 3 execution(s) | 3 success | 0 error
+
