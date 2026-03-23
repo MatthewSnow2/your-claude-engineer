@@ -1,0 +1,9 @@
+Found 1 skill(s):
+
+  beautifulsoup-agent - v1.2.0
+    Rating: 0.0/5.0 | Downloads: 0
+    Web scraping agent with BeautifulSoup for parsing HTML content
+    Versions: 1.2.0
+
+
+Install with: skillhub install <skill-name>[@version]

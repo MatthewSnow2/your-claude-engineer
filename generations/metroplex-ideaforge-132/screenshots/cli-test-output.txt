@@ -1,0 +1,100 @@
+
+============================================================
+TEST: skillhub --help
+============================================================
+Usage: skillhub [OPTIONS] COMMAND [ARGS]...
+
+  SkillHub CLI - Manage agent skills for MCP.
+
+  A command-line tool for publishing, discovering, and managing agent skills
+  based on the Agent Skills open standard.
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  init      Initialize a new skill directory with template files.
+  install   Install a skill from the registry or local .skillpkg file.
+  list      List available or installed skills.
+  publish   Publish skill to MCP registry.
+  search    Search for skills in the MCP registry.
+  validate  Validate skill manifest against Agent Skills schema.
+
+Return code: 0
+
+============================================================
+TEST: skillhub search --help
+============================================================
+Usage: skillhub search [OPTIONS] [QUERY]
+
+  Search for skills in the MCP registry.
+
+Options:
+  --tags TEXT      Filter by tags (comma-separated)
+  --limit INTEGER  Maximum number of results (default: 10)
+  --registry TEXT  Custom registry URL (defaults to SKILLHUB_REGISTRY_URL or
+                   local)
+  --help           Show this message and exit.
+
+Return code: 0
+
+============================================================
+TEST: skillhub install --help
+============================================================
+Usage: skillhub install [OPTIONS] PACKAGE_SPEC
+
+  Install a skill from the registry or local .skillpkg file.
+
+Options:
+  --save-dev       Add to dev_dependencies in skill.json
+  --force          Force reinstall if already installed
+  --registry TEXT  Custom registry URL (defaults to SKILLHUB_REGISTRY_URL or
+                   local)
+  --help           Show this message and exit.
+
+Return code: 0
+
+============================================================
+TEST: skillhub list --help
+============================================================
+Usage: skillhub list [OPTIONS]
+
+  List available or installed skills.
+
+Options:
+  --installed  Show only locally cached skills
+  --help       Show this message and exit.
+
+Return code: 0
+
+============================================================
+TEST: skillhub search 'test'
+============================================================
+No skills found matching 'test'
+
+Return code: 0
+
+============================================================
+TEST: skillhub search --tags web --limit 5
+============================================================
+No skills found in registry
+
+Return code: 0
+
+============================================================
+TEST: skillhub list --installed
+============================================================
+No skills installed in local cache
+Cache location: /home/apexaipc/.skillhub
+
+Install skills with: skillhub install <skill-name>
+
+Return code: 0
+
+============================================================
+TEST: skillhub install nonexistent (error test)
+============================================================
+Error: File not found: ./nonexistent.skillpkg
+
+Return code: 0

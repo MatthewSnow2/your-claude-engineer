@@ -1,0 +1,97 @@
+============================================================
+EDGE CASE TESTING FOR M2A-282 Feature 2
+============================================================
+
+============================================================
+TEST: Search without query (should list all or show help)
+CMD: ./venv/bin/skillhub search
+============================================================
+Found 2 skill(s):
+
+  webscraper-skill - v0.1.0
+    Rating: 0.0/5.0 | Downloads: 0
+    A web scraping agent skill
+    Versions: 0.1.0
+
+  webscraper-skill - v0.1.0
+    Rating: 0.0/5.0 | Downloads: 0
+    A web scraping agent skill
+    Versions: 0.1.0
+
+
+Install with: skillhub install <skill-name>[@version]
+
+Return code: 0
+
+============================================================
+TEST: Search with multiple tags
+CMD: ./venv/bin/skillhub search --tags web,scraping --limit 3
+============================================================
+No skills found in registry
+
+Return code: 0
+
+============================================================
+TEST: Install without package spec (should error)
+CMD: ./venv/bin/skillhub install
+============================================================
+
+STDERR: Usage: skillhub install [OPTIONS] PACKAGE_SPEC
+Try 'skillhub install --help' for help.
+
+Error: Missing argument 'PACKAGE_SPEC'.
+
+Return code: 2
+
+============================================================
+TEST: Install with invalid version format
+CMD: ./venv/bin/skillhub install test-skill@invalid-version
+============================================================
+Error: Skill 'test-skill' not found in registry
+
+Return code: 0
+
+============================================================
+TEST: List without --installed flag
+CMD: ./venv/bin/skillhub list
+============================================================
+Error: Only --installed flag is currently supported
+Use 'skillhub list --installed' to show cached skills
+Use 'skillhub search' to discover available skills
+
+Return code: 0
+
+============================================================
+TEST: Search with limit 0
+CMD: ./venv/bin/skillhub search --limit 0
+============================================================
+Found 1 skill(s):
+
+  webscraper-skill - v0.1.0
+    Rating: 0.0/5.0 | Downloads: 0
+    A web scraping agent skill
+    Versions: 0.1.0
+
+
+Install with: skillhub install <skill-name>[@version]
+
+Return code: 0
+
+============================================================
+TEST: Check version output
+CMD: ./venv/bin/skillhub --version
+============================================================
+skillhub, version 0.1.0
+
+Return code: 0
+
+============================================================
+EDGE CASE TEST SUMMARY
+============================================================
+PASS: Search without query (should list all or show help)
+PASS: Search with multiple tags
+FAIL: Install without package spec (should error)
+PASS: Install with invalid version format
+PASS: List without --installed flag
+PASS: Search with limit 0
+PASS: Check version output

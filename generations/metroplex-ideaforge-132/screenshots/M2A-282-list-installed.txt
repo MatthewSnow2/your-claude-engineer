@@ -1,0 +1,11 @@
+Installed skills (1):
+
+Cache location: /tmp/tmpl35kj1jj/cache
+
+  beautifulsoup-agent - v1.2.0
+    Web scraping agent with BeautifulSoup for parsing HTML content
+    Location: /tmp/tmpl35kj1jj/cache/cache/skills/beautifulsoup-agent/1.2.0
+    License: MIT
+    Dependencies: beautifulsoup4, requests
+
+Total: 1 skill(s)

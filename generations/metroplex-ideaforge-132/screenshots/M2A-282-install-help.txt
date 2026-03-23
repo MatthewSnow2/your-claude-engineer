@@ -1,0 +1,10 @@
+Usage: cli install [OPTIONS] PACKAGE_SPEC
+
+  Install a skill from the registry or local .skillpkg file.
+
+Options:
+  --save-dev       Add to dev_dependencies in skill.json
+  --force          Force reinstall if already installed
+  --registry TEXT  Custom registry URL (defaults to SKILLHUB_REGISTRY_URL or
+                   local)
+  --help           Show this message and exit.

@@ -1,0 +1,9 @@
+Downloading beautifulsoup-agent@1.2.0...
+Installing to local cache...
+
+Successfully installed beautifulsoup-agent@1.2.0
+Location: /tmp/tmpl35kj1jj/cache/cache/skills/beautifulsoup-agent/1.2.0
+Size: 1981 bytes
+
+Dependencies: beautifulsoup4, requests
+Note: Automatic dependency resolution not yet implemented

@@ -1,0 +1,10 @@
+Usage: cli search [OPTIONS] [QUERY]
+
+  Search for skills in the MCP registry.
+
+Options:
+  --tags TEXT      Filter by tags (comma-separated)
+  --limit INTEGER  Maximum number of results (default: 10)
+  --registry TEXT  Custom registry URL (defaults to SKILLHUB_REGISTRY_URL or
+                   local)
+  --help           Show this message and exit.

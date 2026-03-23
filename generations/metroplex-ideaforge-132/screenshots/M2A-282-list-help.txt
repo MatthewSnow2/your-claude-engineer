@@ -1,0 +1,7 @@
+Usage: cli list [OPTIONS]
+
+  List available or installed skills.
+
+Options:
+  --installed  Show only locally cached skills
+  --help       Show this message and exit.

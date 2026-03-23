@@ -4,7 +4,10 @@ import click
 
 from skillhub import __version__
 from skillhub.cli.commands.init import init
+from skillhub.cli.commands.install import install
+from skillhub.cli.commands.list_cmd import list_skills
 from skillhub.cli.commands.publish import publish
+from skillhub.cli.commands.search import search
 from skillhub.cli.commands.validate import validate
 
 
@@ -24,6 +27,9 @@ def cli():
 cli.add_command(init)
 cli.add_command(publish)
 cli.add_command(validate)
+cli.add_command(search)
+cli.add_command(install)
+cli.add_command(list_skills)
 
 
 if __name__ == "__main__":
