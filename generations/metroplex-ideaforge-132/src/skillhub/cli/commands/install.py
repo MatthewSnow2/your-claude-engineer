@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 
 from skillhub.core.cache import SkillCacheManager
+from skillhub.core.dependency_resolver import DependencyResolver
 from skillhub.core.packaging import SkillPackager
 from skillhub.core.registry import RegistryClient
 
@@ -119,7 +120,41 @@ def install(package_spec: str, save_dev: bool, force: bool, registry: str):
         # Handle dependencies
         if package.manifest.dependencies:
             click.echo(f"\nDependencies: {', '.join(package.manifest.dependencies.keys())}")
-            click.echo("Note: Automatic dependency resolution not yet implemented")
+
+            # Automatic dependency resolution
+            click.echo("Resolving dependencies...")
+            resolver = DependencyResolver(client, cache_manager)
+            try:
+                resolved = resolver.resolve_dependencies(package.manifest, include_dev=False)
+
+                if resolved.conflicts:
+                    click.echo("Warning: Dependency conflicts detected:")
+                    for conflict in resolved.conflicts:
+                        click.echo(f"  - {conflict.skill_name}")
+                else:
+                    # Install dependencies in resolution order
+                    for dep_name in resolved.resolution_order:
+                        dep = next((d for d in resolved.dependencies if d.name == dep_name), None)
+                        if not dep:
+                            continue
+
+                        # Skip if already installed
+                        if cache_manager.skill_exists(dep_name, dep.version):
+                            click.echo(f"  ✓ {dep_name}@{dep.version} (already installed)")
+                            continue
+
+                        # Download and install
+                        click.echo(f"  Installing {dep_name}@{dep.version}...")
+                        dep_package = client.download_skill_package(dep_name, dep.version, entry.namespace)
+                        if dep_package:
+                            cache_manager.cache_skill(
+                                dep_name, dep.version, dep_package.manifest, dep_package.source_files
+                            )
+                            click.echo(f"  ✓ {dep_name}@{dep.version}")
+                        else:
+                            click.echo(f"  Error: Failed to download {dep_name}@{dep.version}")
+            except (ValueError, OSError) as e:
+                click.echo(f"Warning: Error resolving dependencies: {e}")
 
         # Update skill.json if --save-dev
         if save_dev:
