@@ -1,0 +1,54 @@
+{
+  "initialized": true,
+  "created_at": "2026-03-23T11:16:11.480Z",
+  "team_key": "M2A",
+  "team_name": "M2AI_Workspace",
+  "project_id": "9e59405c-4942-4933-9040-5da581e79910",
+  "project_name": "SkillHub CLI",
+  "project_slug": "5f0d0f987ddd",
+  "project_url": "https://linear.app/m2ai-workspace/project/skillhub-cli-5f0d0f987ddd",
+  "meta_issue_id": "M2A-286",
+  "total_features": 5,
+  "issues": [
+    {
+      "id": "M2A-281",
+      "number": 281,
+      "title": "Feature 1: Agent Skill Publishing",
+      "priority": "Urgent",
+      "status": "Backlog",
+      "issue_id": "206a5b65-f5d8-4c21-849e-66436cc4b38d"
+    },
+    {
+      "id": "M2A-282",
+      "number": 282,
+      "title": "Feature 2: Skill Discovery and Installation",
+      "priority": "Urgent",
+      "status": "Backlog",
+      "issue_id": "a0b1447f-3f68-49cc-9e8f-fbbeeb7a5040"
+    },
+    {
+      "id": "M2A-283",
+      "number": 283,
+      "title": "Feature 3: MCP-Native Skill Execution",
+      "priority": "High",
+      "status": "Backlog",
+      "issue_id": "86087e7b-6fde-4b98-9b32-9fa58d6e748f"
+    },
+    {
+      "id": "M2A-284",
+      "number": 284,
+      "title": "Feature 4: Agent Skills Standard Validation",
+      "priority": "High",
+      "status": "Backlog",
+      "issue_id": "5ecdd584-396d-4272-8f1a-a1c7ac9608c3"
+    },
+    {
+      "id": "M2A-285",
+      "number": 285,
+      "title": "Feature 5: Skill Dependency and Version Management",
+      "priority": "High",
+      "status": "Backlog",
+      "issue_id": "d8a118a1-5565-4c23-b552-3fe8a08ec103"
+    }
+  ]
+}

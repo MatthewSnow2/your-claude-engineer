@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://modelcontextprotocol.io/schemas/tool-definition.json",
+  "title": "MCP Tool Definition",
+  "description": "Schema for Model Context Protocol tool definitions",
+  "type": "object",
+  "required": ["name", "description", "inputSchema"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Tool identifier"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable tool description"
+    },
+    "inputSchema": {
+      "type": "object",
+      "description": "JSON Schema defining tool inputs",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["object"]
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

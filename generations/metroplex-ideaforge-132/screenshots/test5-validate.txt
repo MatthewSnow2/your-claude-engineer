@@ -1,0 +1,7 @@
+Validating /tmp/skillhub-test/webscraper-skill/skill.json...
+
+Validation passed!
+  Skill: webscraper-skill v0.1.0
+  Author: Test Developer
+  Capabilities: 1
+  MCP Tools: 1

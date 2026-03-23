@@ -1,0 +1,8 @@
+Usage: python -m skillhub.cli.main init [OPTIONS] SKILL_NAME
+
+  Initialize a new skill directory with template files.
+
+Options:
+  --author TEXT       Author name
+  --description TEXT  Skill description
+  --help              Show this message and exit.

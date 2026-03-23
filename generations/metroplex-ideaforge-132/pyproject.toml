@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillhub-cli"
+version = "0.1.0"
+description = "CLI tool for publishing, discovering, and managing agent skills"
+authors = [
+    {name = "SkillHub Team", email = "team@skillhub.dev"}
+]
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["agent", "skills", "mcp", "cli", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "click>=8.1.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-click>=1.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+skillhub = "skillhub.cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/skillhub/cli"
+Documentation = "https://docs.skillhub.dev"
+Repository = "https://github.com/skillhub/cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

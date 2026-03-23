@@ -1,0 +1,33 @@
+{
+  "codebase_patterns": {
+    "framework": "Python 3.11+ with Click CLI, Pydantic v2",
+    "file_structure": "src/skillhub/{cli,core,templates}/ with tests/ and schemas/",
+    "styling": "Black formatter, type hints required",
+    "state_management": "Pydantic models for data validation and serialization",
+    "common_mistakes_to_avoid": [
+      "Always validate tarfile paths before extraction to prevent path traversal",
+      "Use datetime.now(timezone.utc) instead of datetime.utcnow()",
+      "Add file size limits before extracting archives",
+      "Filter out symlinks in tarfile extraction",
+      "Set explicit file permissions on tarfile members (0o644 for files, 0o755 for executables)",
+      "Use specific exception types, not bare except Exception",
+      "Use Optional[] type hints for nullable return values",
+      "Resolve paths to absolute before security checks"
+    ]
+  },
+  "security_patterns": [
+    "Path traversal protection for all file extraction operations",
+    "File size limits before JSON/tarfile loading (MAX_PACKAGE_SIZE=100MB, MAX_FILE_SIZE=10MB)",
+    "Explicit TLS verification in HTTP clients",
+    "Safe file permissions on created tarfiles (0o644/0o755)",
+    "Symlink filtering during archive extraction",
+    "Use filter='data' parameter for tarfile.open() on Python 3.12+",
+    "Validate each tarfile member path with member_path.is_relative_to(output_dir)"
+  ],
+  "testing_patterns": [
+    "Use pytest fixtures for sample data",
+    "Test security boundaries (path traversal, symlinks, size limits)",
+    "Use tmp_path fixture for file operations in tests",
+    "Test both positive and negative cases for validation"
+  ]
+}

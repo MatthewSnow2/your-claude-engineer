@@ -1,0 +1,15 @@
+Usage: python -m skillhub.cli.main [OPTIONS] COMMAND [ARGS]...
+
+  SkillHub CLI - Manage agent skills for MCP.
+
+  A command-line tool for publishing, discovering, and managing agent skills
+  based on the Agent Skills open standard.
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  init      Initialize a new skill directory with template files.
+  publish   Publish skill to MCP registry.
+  validate  Validate skill manifest against Agent Skills schema.

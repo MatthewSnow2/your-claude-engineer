@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-skills.dev/schemas/v1/skill-manifest.json",
+  "title": "Agent Skills Manifest v1.0.0",
+  "description": "Schema for Agent Skills standard skill manifest",
+  "type": "object",
+  "required": [
+    "name",
+    "version",
+    "description",
+    "author",
+    "capabilities",
+    "main_module",
+    "license"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Skill name (alphanumeric, dash, underscore only)"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (X.Y.Z)"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Skill description"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Author name or organization"
+    },
+    "agent_skills_version": {
+      "type": "string",
+      "default": "1.0.0",
+      "description": "Agent Skills standard version"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/capability"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "dev_dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "main_module": {
+      "type": "string",
+      "description": "Path to main module file"
+    },
+    "mcp_tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/mcp_tool"
+      },
+      "default": []
+    },
+    "compatibility": {
+      "$ref": "#/definitions/compatibility"
+    },
+    "license": {
+      "type": "string",
+      "description": "License identifier (SPDX)"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "repository": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "default": null
+    }
+  },
+  "definitions": {
+    "capability": {
+      "type": "object",
+      "required": ["name", "description", "input_schema", "output_schema"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Capability name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Capability description"
+        },
+        "input_schema": {
+          "type": "object",
+          "description": "JSON schema for inputs"
+        },
+        "output_schema": {
+          "type": "object",
+          "description": "JSON schema for outputs"
+        },
+        "required_permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "mcp_tool": {
+      "type": "object",
+      "required": ["name", "description", "inputSchema", "function_path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Tool description"
+        },
+        "inputSchema": {
+          "type": "object",
+          "description": "JSON schema for tool inputs"
+        },
+        "function_path": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Python path to function (module.function)"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "claude_code": {
+          "type": "boolean",
+          "default": true
+        },
+        "custom_agents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "runtime_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

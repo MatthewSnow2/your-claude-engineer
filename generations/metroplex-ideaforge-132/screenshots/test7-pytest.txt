@@ -1,0 +1,53 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/apexaipc/projects/yce-harness/generations/metroplex-ideaforge-132/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/apexaipc/projects/yce-harness/generations/metroplex-ideaforge-132
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, click-1.1.0, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 42 items
+
+tests/test_cli_commands.py::test_version_command PASSED                  [  2%]
+tests/test_cli_commands.py::test_help_command PASSED                     [  4%]
+tests/test_cli_commands.py::test_init_command PASSED                     [  7%]
+tests/test_cli_commands.py::test_init_command_existing_directory PASSED  [  9%]
+tests/test_cli_commands.py::test_validate_command PASSED                 [ 11%]
+tests/test_cli_commands.py::test_validate_command_current_dir PASSED     [ 14%]
+tests/test_cli_commands.py::test_validate_command_invalid_manifest PASSED [ 16%]
+tests/test_cli_commands.py::test_publish_command_no_manifest PASSED      [ 19%]
+tests/test_cli_commands.py::test_publish_command_dry_run PASSED          [ 21%]
+tests/test_cli_commands.py::test_publish_command_to_local_registry PASSED [ 23%]
+tests/test_packaging.py::test_collect_source_files PASSED                [ 26%]
+tests/test_packaging.py::test_calculate_checksum PASSED                  [ 28%]
+tests/test_packaging.py::test_package_skill PASSED                       [ 30%]
+tests/test_packaging.py::test_write_package_file PASSED                  [ 33%]
+tests/test_packaging.py::test_extract_package PASSED                     [ 35%]
+tests/test_packaging.py::test_create_package_convenience_function PASSED [ 38%]
+tests/test_packaging.py::test_create_package_validation_failure PASSED   [ 40%]
+tests/test_packaging.py::test_package_includes_readme PASSED             [ 42%]
+tests/test_packaging.py::test_package_excludes_pycache PASSED            [ 45%]
+tests/test_packaging.py::test_extract_package_rejects_path_traversal PASSED [ 47%]
+tests/test_packaging.py::test_extract_package_rejects_symlinks PASSED    [ 50%]
+tests/test_packaging.py::test_extract_package_rejects_oversized_package PASSED [ 52%]
+tests/test_registry.py::test_registry_client_initialization PASSED       [ 54%]
+tests/test_registry.py::test_publish_skill_to_local_registry PASSED      [ 57%]
+tests/test_registry.py::test_publish_skill_with_namespace PASSED         [ 59%]
+tests/test_registry.py::test_publish_multiple_versions PASSED            [ 61%]
+tests/test_registry.py::test_get_skill_from_registry PASSED              [ 64%]
+tests/test_registry.py::test_get_skill_with_namespace PASSED             [ 66%]
+tests/test_registry.py::test_get_nonexistent_skill PASSED                [ 69%]
+tests/test_registry.py::test_check_skill_exists PASSED                   [ 71%]
+tests/test_registry.py::test_registry_index_persistence PASSED           [ 73%]
+tests/test_skill_validation.py::test_validation_result PASSED            [ 76%]
+tests/test_skill_validation.py::test_validate_valid_manifest PASSED      [ 78%]
+tests/test_skill_validation.py::test_validate_missing_manifest PASSED    [ 80%]
+tests/test_skill_validation.py::test_validate_invalid_json PASSED        [ 83%]
+tests/test_skill_validation.py::test_validate_missing_required_fields PASSED [ 85%]
+tests/test_skill_validation.py::test_validate_invalid_version_format PASSED [ 88%]
+tests/test_skill_validation.py::test_validate_invalid_skill_name PASSED  [ 90%]
+tests/test_skill_validation.py::test_validate_skill_directory PASSED     [ 92%]
+tests/test_skill_validation.py::test_validate_skill_directory_missing_main_module PASSED [ 95%]
+tests/test_skill_validation.py::test_pydantic_model_validation PASSED    [ 97%]
+tests/test_skill_validation.py::test_validation_warnings_no_capabilities PASSED [100%]
+
+============================== 42 passed in 0.57s ==============================

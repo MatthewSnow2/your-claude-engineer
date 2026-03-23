@@ -1,0 +1,11 @@
+Usage: python -m skillhub.cli.main publish [OPTIONS]
+
+  Publish skill to MCP registry.
+
+Options:
+  --private         Publish as private skill
+  --namespace TEXT  Namespace for private skills
+  --registry TEXT   Custom registry URL (defaults to SKILLHUB_REGISTRY_URL or
+                    local)
+  --dry-run         Validate and package without publishing
+  --help            Show this message and exit.
