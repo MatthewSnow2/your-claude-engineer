@@ -3,6 +3,7 @@
 import click
 
 from skillhub import __version__
+from skillhub.cli.commands.deps import deps
 from skillhub.cli.commands.init import init
 from skillhub.cli.commands.install import install
 from skillhub.cli.commands.list_cmd import list_skills
@@ -34,6 +35,7 @@ cli.add_command(install)
 cli.add_command(list_skills)
 cli.add_command(serve)
 cli.add_command(logs)
+cli.add_command(deps)
 
 
 if __name__ == "__main__":
