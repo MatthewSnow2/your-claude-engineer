@@ -1,5 +1,6 @@
 """CLI entry point for csuite."""
 import click
+import os
 from pathlib import Path
 
 from .parser import CodebaseParser
@@ -42,9 +43,12 @@ def diagram(path: str, output: str):
 
     try:
         mermaid_content = generate_mermaid_diagram(modules)
-        output_path = Path(output)
+        # Respect CSUITE_OUTPUT_DIR environment variable
+        output_dir = os.getenv('CSUITE_OUTPUT_DIR', '.')
+        output_path = Path(output_dir) / output
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(mermaid_content)
-        click.echo(f"Mermaid diagram written to {output}")
+        click.echo(f"Mermaid diagram written to {output_path}")
     except NotImplementedError as e:
         click.echo(f"Error: {e}", err=True)
         raise click.Abort()
@@ -62,9 +66,12 @@ def docs(path: str, output: str):
 
     try:
         markdown_content = generate_markdown_docs(modules)
-        output_path = Path(output)
+        # Respect CSUITE_OUTPUT_DIR environment variable
+        output_dir = os.getenv('CSUITE_OUTPUT_DIR', '.')
+        output_path = Path(output_dir) / output
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown_content)
-        click.echo(f"Markdown documentation written to {output}")
+        click.echo(f"Markdown documentation written to {output_path}")
     except NotImplementedError as e:
         click.echo(f"Error: {e}", err=True)
         raise click.Abort()
