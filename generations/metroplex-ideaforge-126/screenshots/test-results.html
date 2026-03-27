@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>M2A-467 Test Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .pass {
+            background: #27ae60;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .stat {
+            background: #3498db;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px;
+        }
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            display: block;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .code {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .success { color: #27ae60; font-weight: bold; }
+        .error { color: #e74c3c; }
+        ul { line-height: 1.8; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>M2A-467: Agent Event Hook Implementation</h1>
+        <p>VoiceNotify MCP Plugin - Test Results</p>
+    </div>
+
+    <div class="pass">✓ ALL TESTS PASSED - 56/56 Tests Successful</div>
+
+    <div class="stats">
+        <div class="stat">
+            <span class="stat-number">56</span>
+            <span>Tests Passed</span>
+        </div>
+        <div class="stat" style="background: #27ae60;">
+            <span class="stat-number">0</span>
+            <span>Tests Failed</span>
+        </div>
+        <div class="stat" style="background: #e67e22;">
+            <span class="stat-number">92%</span>
+            <span>Coverage</span>
+        </div>
+        <div class="stat" style="background: #9b59b6;">
+            <span class="stat-number">9</span>
+            <span>Files Created</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>CLI Test Results</h2>
+
+        <h3>✓ Test 1: Valid Completed Event</h3>
+        <div class="code">$ echo '{"event":"agent.completed","agent_id":"test1","ts":1730000000}' | python -m voicenotify.main
+<span class="success">[INFO] Notification required: completed for test1</span></div>
+
+        <h3>✓ Test 2: Malformed JSON</h3>
+        <div class="code">$ echo 'bad json' | python -m voicenotify.main
+<span class="error">[ERROR] Failed to parse JSON: Expecting value...</span></div>
+
+        <h3>✓ Test 3: Stalled Event</h3>
+        <div class="code">$ echo '{"event":"agent.stalled","agent_id":"test2","ts":1730000001}' | python -m voicenotify.main
+<span class="success">[INFO] Notification required: stalled for test2</span></div>
+
+        <h3>✓ Test 4: Need Decision Event</h3>
+        <div class="code">$ echo '{"event":"agent.need_decision","agent_id":"test3","ts":1730000002}' | python -m voicenotify.main
+<span class="success">[INFO] Notification required: need_decision for test3</span></div>
+    </div>
+
+    <div class="section">
+        <h2>Requirements Met</h2>
+        <ul>
+            <li><span class="success">✓</span> Persistent stdin/stdout channel implemented</li>
+            <li><span class="success">✓</span> JSON parsing with schema validation</li>
+            <li><span class="success">✓</span> Internal notification_required signal emitted</li>
+            <li><span class="success">✓</span> Graceful handling of malformed JSON</li>
+            <li><span class="success">✓</span> No third-party packages (stdlib only)</li>
+            <li><span class="success">✓</span> SIGINT handling for clean shutdown</li>
+            <li><span class="success">✓</span> 92% test coverage (exceeds 90% requirement)</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Files Created</h2>
+        <ul>
+            <li>voicenotify/__init__.py</li>
+            <li>voicenotify/models.py - AgentEvent & NotificationConfig dataclasses</li>
+            <li>voicenotify/config.py - Environment variable loading</li>
+            <li>voicenotify/event_hook.py - JSON parsing & validation</li>
+            <li>voicenotify/notifier.py - Notification stub</li>
+            <li>voicenotify/utils.py - Helper utilities</li>
+            <li>voicenotify/main.py - Main entry point</li>
+            <li>tests/ - 6 test files with 56 tests total</li>
+            <li>setup.py - Package configuration</li>
+        </ul>
+    </div>
+</body>
+</html>

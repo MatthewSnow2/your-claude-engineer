@@ -1,0 +1,157 @@
+
+
+# VoiceNotify MCP Plugin - App Specification
+
+## Overview
+A plug‑in for the Model Context Protocol (MCP) server that monitors the lifecycle of an AI coding agent. When the agent signals completion, stalls, or needs a decision, the plug‑in automatically notifies the developer by either placing a local phone call or delivering a Telegram‑style voice note saved to a local directory. The tool runs entirely offline, using only the host’s telephony subsystem and a lightweight mock Telegram server bound to localhost.
+
+**Problem Statement**: Developers using AI coding assistants must remain glued to their screens to notice when the agent finishes, gets stuck, or awaits input, breaking concentration and wasting time.  
+**Target Audience**: Solo developers who operate Claude Code, Cursor, Gemini CLI, or similar agents via MCP and prefer to step away during long runs while staying informed.
+
+## Tech Stack
+- Python 3.11+
+- Standard library only (no third‑party packages)
+- `subprocess` for local system calls (telephony, audio generation)
+- Built‑in `json` and `logging` for configuration and event handling
+- `pytest` for unit tests
+
+## Environment Setup
+
+### Prerequisites
+- A host with a functional telephony subsystem capable of placing outbound calls via command line (e.g., `adb shell service call telephony` on Android, or `osascript`/`say` combined with `tel:` URL on macOS/iOS, or `mmcli` on Linux with a connected modem).
+- Optional: A sound playback utility (`aplay`, `afplay`, or `ffplay`) for generating voice notes.
+- Python 3.11 installed.
+
+### Configuration
+| Environment Variable | Required? | Default | Description |
+|----------------------|-----------|---------|-------------|
+| `VOICENOTIFY_MODE`   | No        | `call`  | `call` to place a phone call, `tg` to save a Telegram‑style voice note. |
+| `VOICENOTIFY_TARGET` | Yes       | –       | Phone number (E.164 format) when `MODE=call`, or file‑system path (directory) when `MODE=tg` where voice notes will be stored. |
+| `VOICENOTIFY_LANG`   | No        | `en-US` | Language code for text‑to‑speech synthesis. |
+| `VOICENOTIFY_VOICE`  | No        | `default` | TTS voice name (depends on platform TTS engine). |
+
+## Architecture
+```
++-------------------+       +------------------+       +-------------------+
+|   MCP Server      |<----->| VoiceNotify Plugin|<----->|   Host System     |
+| (Agent Runner)    |  RPC  | (Python process) |       | (Telephony/TTS)   |
++-------------------+       +------------------+       +-------------------+
+        ^                         ^                         ^
+        |                         |                         |
+        |   Event: completion/   |   Action: place call   |   Action: generate
+        |   stall / need_decision|   or write voice note   |   and audio file
+        +-------------------------+-------------------------+-----------------+
+```
+* The MCP server communicates with the plug‑in via a simple RPC endpoint (stdin/stdout JSON messages).  
+* The plug‑in listens for `agent.completed`, `agent.stalled`, and `agent.need_decision` events.  
+* Upon an event, it routes to the **Notifier** component which either:  
+  - Invokes the host’s telephony CLI to dial `VOICENOTIFY_TARGET`, or  
+  - Uses the platform’s TTS engine to synthesize a voice note, saves it as `{timestamp}.ogg` under `VOICENOTIFY_TARGET`, and optionally plays it locally for immediate feedback.
+
+## Core Features
+
+### Feature 1: Agent Event Hook
+**Description**: Registers callbacks with the MCP server to receive real‑time notifications of three agent states: completion, stall, and need‑for‑decision. The plug‑in translates these into internal events that trigger the notifier.
+
+**Requirements**:
+- Must open a persistent stdin/stdout channel with the MCP server upon start‑up.
+- Must parse each incoming JSON line and validate the schema `{ "event": "agent.completed|agent.stalled|agent.need_decision", "agent_id": string, "ts": integer }`.
+- Must emit an internal `notification_required(event_type, agent_id)` signal within 200 ms of receiving a valid event.
+- Must gracefully handle malformed JSON by logging (to stderr) and continuing without crash.
+
+**Test Steps**:
+1. `echo '{"event":"agent.completed","agent_id":"test1","ts":1730000000}' | python -m voicenotify.main`  
+   → Expected: Plugin prints `[INFO] Notification required: completed for test1` to stdout.  
+2. `echo 'bad json' | python -m voicenotify.main`  
+   → Expected: Plugin prints `[ERROR] Failed to parse JSON: ...` to stderr and continues waiting for next line.  
+3. Send `agent.stalled` event → Expect `[INFO] Notification required: stalled for test2`.
+
+### Feature 2: Notification Delivery (Call / Telegram Voice Note)
+**Description**: Upon receiving a `notification_required` signal, the plug‑in either places an outbound phone call to the number configured in `VOICENOTIFY_TARGET` (if `MODE=call`) or synthesizes a voice note using the host’s TTS engine, stores it as an Ogg Vorbis file under the directory `VOICENOTIFY_TARGET` (if `MODE=tg`), and optionally plays it back for immediate local feedback.
+
+**Requirements**:
+- In `call` mode:  
+  - Must locate a telephony CLI (`mmcli`, `adb`, `osascript`, etc.) present in `$PATH`.  
+  - Must construct a command to dial `VOICENOTIFY_TARGET` and invoke it via `subprocess.run`, checking return code; non‑zero triggers a retry up to 2 times.  
+  - Must not block the main event loop longer than 5 seconds per call attempt.  
+- In `tg` mode:  
+  - Must locate a TTS engine (`say` on macOS, `espeak-ng` on Linux, `powershell Add-Type -AssemblyName System.Speech` on Windows) present in `$PATH`.  
+  - Must synthesize the message `"Agent {agent_id} has {event}"` (localized per `VOICENOTIFY_LANG` and voice per `VOICENOTIFY_VOICE`) into a mono 16 kHz Ogg Vorbis file.  
+  - Must save the file as `{UNIX_TIMESTAMP}_{agent_id}_{event}.ogg` inside `VOICENOTIFY_TARGET`.  
+  - Must optionally play the file back using a local audio player if the environment variable `VOICENOTIFY_PLAYBACK=1` is set.  
+- Must support runtime re‑configuration via SIGHUP (reload environment variables without restart).  
+- Must clean up temporary wav files after encoding to ogg.
+
+**Test Steps** (assume Linux with `mmcli` and `espeak-ng` installed):
+1. `VOICENOTIFY_MODE=call VOICENOTIFY_TARGET="+15551234567" python -m voicenotify.main`  
+   → Send `{"event":"agent.completed","agent_id":"demo","ts":1730000000}`  
+   → Observe subprocess call to `mmcli --modem=0 --command="dial +15551234567"` executed; return code 0 yields `[INFO] Call placed`.  
+2. `VOICENOTIFY_MODE=tg VOICENOTIFY_TARGET="/tmp/voicenotes" VOICENOTIFY_PLAYBACK=0 python -m voicenotify.main`  
+   → Send `{"event":"agent.need_decision","agent_id":"demo","ts":1730000001}`  
+   → Verify file `/tmp/voicenotes/1730000001_demo_need_decision.ogg` exists and is a valid Ogg Vorbis (using `ogginfo`).  
+   → No playback occurs.  
+3. `VOICENOTIFY_MODE=tg VOICENOTIFY_TARGET="/tmp/voicenotes" VOICENOTIFY_PLAYBACK=1 python -m voicenotify.main`  
+   → Send `{"event":"agent.stalled","agent_id":"demo","ts":1730000002}`  
+   → Verify file created as above, then hear a short spoken notification via default audio output.  
+
+## Data Models
+```python
+from pydantic import BaseModel
+from typing import Literal
+
+class AgentEvent(BaseModel):
+    event: Literal["agent.completed", "agent.stalled", "agent.need_decision"]
+    agent_id: str
+    ts: int  # Unix epoch seconds
+
+class NotificationConfig(BaseModel):
+    mode: Literal["call", "tg"] = "call"
+    target: str  # phone number or directory path
+    lang: str = "en-US"
+    voice: str = "default"
+    playback: bool = False  # only relevant for tg mode
+```
+*Used internally to validate environment variables and incoming MCP messages.*
+
+## File Structure
+```
+voicenotify/
+│   __init__.py
+│   main.py          # MCP RPC listener + event routing
+│   event_hook.py    # AgentEvent parsing and validation
+│   notifier.py      # Call logic & TTS voice‑note generation
+│   config.py        # Environment variable loading & NotificationConfig model
+│   models.py        # Pydantic models (AgentEvent, NotificationConfig)
+│   utils.py         # Helper: subprocess with retry, audio encoding, file naming
+│
+tests/
+│   __init__.py
+│   test_main.py
+│   test_event_hook.py
+│   test_notifier.py
+│
+requirements.txt     # empty – stdlib only
+README.md
+```
+*Total files: 9 (within the 8‑12 limit).*
+
+## Success Criteria
+- **Fast detection**: From emission of an agent event by the MCP server to start of notification ≤ 300 ms measured on a typical laptop (Intel i5, 8 GB RAM).  
+- **Reliable call placement**: In `call` mode, ≥ 9 out of 10 attempts result in a call state “dialing” or “connected” as reported by the telephony CLI, with no more than 2 retries per event.  
+- **Correct voice note generation**: In `tg` mode, each event produces a single Ogg Vorbis file whose duration matches the synthesized utterance (±0.2 s) and whose filename encodes the timestamp, agent ID, and event type.  
+- **Offline operation**: No outbound network traffic to external services (verified via `tcpdump` or equivalent) – all audio generation and telephony commands use only local interfaces or loopback.  
+- **Clean shutdown**: SIGINT (Ctrl‑C) stops the listener loop, joins any subprocesses, and exits with code 0 within 1 second.  
+- **Test coverage**: Unit tests achieve ≥ 90 % line coverage on `event_hook.py`, `notifier.py`, and `config.py`.
+
+## Constraints & Notes
+- **No external API dependencies** – All interactions are via local subprocess calls (telephony, TTS, audio playback). The “Telegram” aspect is simulated by storing voice notes locally; a developer may later sync the folder with their Telegram client manually if desired.  
+- **Maximum 3 core features** – We provide exactly two core features (Event Hook and Notification Delivery), satisfying the limit.  
+- **Audio format** – Ogg Vorbis is chosen because it is royalty‑free and playable by most open‑source players; implementation uses `ffmpeg` if present, otherwise falls back to raw wav (still acceptable).  
+- **Telephony abstraction** – The plug‑in attempts to locate known CLI tools in order: `mmcli` (ModemManager), `adb` (Android), `osascript`/`say` (macOS), `termux-telephony-call` (Android Termux), and finally a custom `dial` script placed in `$PATH` by the user. If none are found, the plug‑in logs a clear error and disables call mode.  
+- **Voice‑note language** – Relies on the installed TTS engine’s supported locales; unsupported languages cause fallback to English with a warning.  
+- **File‑system safety** – The target directory for `tg` mode is created if missing; the plug‑in never writes outside this directory.  
+- **Buildable in 5 iterations**: Each iteration can deliver one of the following: (1) basic RPC skeleton, (2) event hook logic, (3) notifier stub, (4) integration & CLI tool detection, (5) unit tests and README. No human intervention beyond invoking the standard Python toolchain (`python -m venv`, `pip install -e .`, `pytest`).  
+- **Lines of markdown target**: Approximately 420 lines – within the 300‑600 window.  
+
+---  
+*End of specification.*

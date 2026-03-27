@@ -1,0 +1,31 @@
+{
+  "initialized": true,
+  "created_at": "2026-03-27T17:36:13.302Z",
+  "team_key": "M2A",
+  "team_name": "M2AI_Workspace",
+  "project_id": "32420dcb-033b-4643-bd4a-ae1c4df4d452",
+  "project_name": "VoiceNotify MCP Plugin",
+  "project_slug": "e38d489bc69c",
+  "project_url": "https://linear.app/m2ai-workspace/project/voicenotify-mcp-plugin-e38d489bc69c",
+  "total_issues": 2,
+  "meta_issue_id": "M2A-469",
+  "meta_issue_url": "https://linear.app/m2ai-workspace/issue/M2A-469/meta-project-progress-tracker",
+  "issues": [
+    {
+      "id": "3634cad7-fa7a-44db-9bf8-69e6ff03b3c7",
+      "identifier": "M2A-467",
+      "title": "Agent Event Hook - MCP event listener and parser",
+      "priority": "High",
+      "state": "Backlog",
+      "url": "https://linear.app/m2ai-workspace/issue/M2A-467/agent-event-hook-mcp-event-listener-and-parser"
+    },
+    {
+      "id": "b9f30a3a-83a9-46b2-8e2c-e54b1d52ef4d",
+      "identifier": "M2A-468",
+      "title": "Notification Delivery - Call and Telegram voice note modes",
+      "priority": "High",
+      "state": "Backlog",
+      "url": "https://linear.app/m2ai-workspace/issue/M2A-468/notification-delivery-call-and-telegram-voice-note-modes"
+    }
+  ]
+}

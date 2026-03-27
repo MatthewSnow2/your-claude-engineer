@@ -1,0 +1,3 @@
+[INFO] VoiceNotify started in call mode
+[INFO] Notification required: completed for test1
+[INFO] Shutdown complete

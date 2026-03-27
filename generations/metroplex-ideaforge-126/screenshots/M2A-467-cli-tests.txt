@@ -1,0 +1,48 @@
+VoiceNotify MCP Plugin - CLI Test Results
+============================================================
+
+Test 1: Valid agent.completed Event
+------------------------------------------------------------
+$ echo '{"event":"agent.completed","agent_id":"test1","ts":1730000000}' | python -m voicenotify.main
+
+[INFO] VoiceNotify started in call mode
+[INFO] Notification required: completed for test1
+[INFO] Shutdown complete
+
+✓ PASS - Plugin correctly processes completed event
+
+
+Test 2: Malformed JSON Handling
+------------------------------------------------------------
+$ echo 'bad json' | python -m voicenotify.main
+
+[INFO] VoiceNotify started in call mode
+[ERROR] Failed to parse JSON: Expecting value: line 1 column 1 (char 0)
+[INFO] Shutdown complete
+
+✓ PASS - Plugin gracefully handles malformed JSON without crash
+
+
+Test 3: agent.stalled Event
+------------------------------------------------------------
+$ echo '{"event":"agent.stalled","agent_id":"test2","ts":1730000001}' | python -m voicenotify.main
+
+[INFO] VoiceNotify started in call mode
+[INFO] Notification required: stalled for test2
+[INFO] Shutdown complete
+
+✓ PASS - Plugin correctly processes stalled event
+
+
+Test 4: agent.need_decision Event
+------------------------------------------------------------
+$ echo '{"event":"agent.need_decision","agent_id":"test3","ts":1730000002}' | python -m voicenotify.main
+
+[INFO] VoiceNotify started in call mode
+[INFO] Notification required: need_decision for test3
+[INFO] Shutdown complete
+
+✓ PASS - Plugin correctly processes need_decision event
+
+
+ALL CLI TESTS PASSED ✓

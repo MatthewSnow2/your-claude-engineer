@@ -1,0 +1,90 @@
+================================================================================
+    M2A-467: Agent Event Hook - VoiceNotify MCP Plugin
+    TEST RESULTS SUMMARY
+================================================================================
+
+ALL TESTS PASSED - 56/56 Tests Successful
+
+--------------------------------------------------------------------------------
+TEST STATISTICS
+--------------------------------------------------------------------------------
+  Total Tests:      56
+  Tests Passed:     56
+  Tests Failed:      0
+  Code Coverage:    92% (exceeds 90% requirement)
+  Files Created:     9
+
+--------------------------------------------------------------------------------
+CLI TEST RESULTS
+--------------------------------------------------------------------------------
+
+Test 1: Valid agent.completed Event
+  Command: echo '{"event":"agent.completed","agent_id":"test1","ts":1730000000}' | python -m voicenotify.main
+  Output:  [INFO] VoiceNotify started in call mode
+           [INFO] Notification required: completed for test1
+           [INFO] Shutdown complete
+  Result:  PASS - Plugin correctly processes completed event
+
+Test 2: Malformed JSON Handling
+  Command: echo 'bad json' | python -m voicenotify.main
+  Output:  [INFO] VoiceNotify started in call mode
+           [ERROR] Failed to parse JSON: Expecting value: line 1 column 1 (char 0)
+           [INFO] Shutdown complete
+  Result:  PASS - Gracefully handles errors without crash
+
+Test 3: agent.stalled Event
+  Command: echo '{"event":"agent.stalled","agent_id":"test2","ts":1730000001}' | python -m voicenotify.main
+  Output:  [INFO] VoiceNotify started in call mode
+           [INFO] Notification required: stalled for test2
+           [INFO] Shutdown complete
+  Result:  PASS
+
+Test 4: agent.need_decision Event
+  Command: echo '{"event":"agent.need_decision","agent_id":"test3","ts":1730000002}' | python -m voicenotify.main
+  Output:  [INFO] VoiceNotify started in call mode
+           [INFO] Notification required: need_decision for test3
+           [INFO] Shutdown complete
+  Result:  PASS
+
+--------------------------------------------------------------------------------
+CODE COVERAGE REPORT
+--------------------------------------------------------------------------------
+Module                     Stmts   Miss  Cover
+----------------------------------------------
+voicenotify/__init__.py        1      0   100%
+voicenotify/config.py         11      0   100%
+voicenotify/event_hook.py     31      0   100%
+voicenotify/main.py           46     11    76%
+voicenotify/models.py         27      0   100%
+voicenotify/notifier.py        5      0   100%
+voicenotify/utils.py          21      0   100%
+----------------------------------------------
+TOTAL                        142     11    92%
+
+--------------------------------------------------------------------------------
+REQUIREMENTS VERIFICATION
+--------------------------------------------------------------------------------
+- Persistent stdin/stdout channel implemented
+- JSON parsing with schema validation
+- Internal notification_required signal emitted
+- Graceful handling of malformed JSON (logs error, continues)
+- No third-party packages (stdlib only)
+- SIGINT handling for clean shutdown
+- 92% test coverage (exceeds 90% requirement)
+- All test steps from specification passed
+
+--------------------------------------------------------------------------------
+FILES CREATED
+--------------------------------------------------------------------------------
+voicenotify/__init__.py      - Package initialization
+voicenotify/models.py        - AgentEvent and NotificationConfig dataclasses
+voicenotify/config.py        - Environment variable loading
+voicenotify/event_hook.py    - JSON parsing and validation
+voicenotify/notifier.py      - Notification stub (Feature 1)
+voicenotify/utils.py         - Helper utilities
+voicenotify/main.py          - Main entry point with stdin listener
+tests/                       - 6 test files with 56 tests total
+setup.py                     - Package configuration
+
+STATUS: FEATURE COMPLETE - Ready for QA Testing
+================================================================================

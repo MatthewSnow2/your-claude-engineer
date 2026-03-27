@@ -1,0 +1,3 @@
+[INFO] VoiceNotify started in call mode
+[INFO] Notification required: need_decision for test3
+[INFO] Shutdown complete
