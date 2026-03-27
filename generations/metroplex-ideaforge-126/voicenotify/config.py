@@ -16,6 +16,9 @@ def load_config() -> NotificationConfig:
         VOICENOTIFY_LANG: Language code for TTS (default: 'en-US')
         VOICENOTIFY_VOICE: TTS voice name (default: 'default')
         VOICENOTIFY_PLAYBACK: '1' to enable playback in tg mode (default: '0')
+
+    Raises:
+        ValueError: If target is not set
     """
     mode = os.getenv("VOICENOTIFY_MODE", "call")
     target = os.getenv("VOICENOTIFY_TARGET", "")
@@ -23,10 +26,9 @@ def load_config() -> NotificationConfig:
     voice = os.getenv("VOICENOTIFY_VOICE", "default")
     playback = os.getenv("VOICENOTIFY_PLAYBACK", "0") == "1"
 
+    # Target is required - no fallback
     if not target:
-        # For testing purposes, allow empty target with a warning
-        # In production, this should raise an error
-        target = "/tmp/voicenotes"
+        raise ValueError("VOICENOTIFY_TARGET environment variable must be set")
 
     return NotificationConfig(
         mode=mode,

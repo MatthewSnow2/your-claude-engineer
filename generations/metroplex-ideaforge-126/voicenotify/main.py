@@ -19,8 +19,10 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Global flag for graceful shutdown
+# Global flags and state
 running = True
+config = None
+config_needs_reload = False
 
 
 def handle_sigint(signum, frame):
@@ -30,12 +32,20 @@ def handle_sigint(signum, frame):
     running = False
 
 
+def handle_sighup(signum, frame):
+    """Handle SIGHUP for config reload."""
+    global config_needs_reload
+    logger.info("Received SIGHUP - will reload configuration")
+    config_needs_reload = True
+
+
 def main():
     """Main event loop - listen for events on stdin."""
-    global running
+    global running, config, config_needs_reload
 
-    # Set up signal handler for clean shutdown
+    # Set up signal handlers
     signal.signal(signal.SIGINT, handle_sigint)
+    signal.signal(signal.SIGHUP, handle_sighup)
 
     # Load configuration
     try:
@@ -49,6 +59,16 @@ def main():
     try:
         while running:
             try:
+                # Check if config needs reload
+                if config_needs_reload:
+                    try:
+                        config = load_config()
+                        logger.info(f"Configuration reloaded - now in {config.mode} mode")
+                        config_needs_reload = False
+                    except Exception as e:
+                        logger.error(f"Failed to reload configuration: {e}")
+                        config_needs_reload = False
+
                 # Read line from stdin (blocking)
                 line = sys.stdin.readline()
 

@@ -1,5 +1,6 @@
 """Data models for VoiceNotify plugin."""
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -40,3 +41,13 @@ class NotificationConfig:
 
         if not self.target:
             raise ValueError("target must be specified")
+
+        # Validate phone number format for call mode (E.164 format)
+        if self.mode == "call":
+            # E.164 format: + followed by 7-15 digits
+            e164_pattern = r'^\+\d{7,15}$'
+            if not re.match(e164_pattern, self.target):
+                raise ValueError(
+                    f"Invalid phone number format: {self.target}. "
+                    "Must be E.164 format (e.g., +1234567890)"
+                )

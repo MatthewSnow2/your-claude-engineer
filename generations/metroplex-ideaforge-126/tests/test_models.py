@@ -143,3 +143,45 @@ class TestNotificationConfig:
         assert config.lang == "en-US"
         assert config.voice == "default"
         assert config.playback is False
+
+    def test_invalid_phone_number_missing_plus(self):
+        """Test that phone number without + prefix raises ValueError in call mode."""
+        with pytest.raises(ValueError, match="Invalid phone number format"):
+            NotificationConfig(
+                mode="call",
+                target="15551234567"
+            )
+
+    def test_invalid_phone_number_too_short(self):
+        """Test that phone number with too few digits raises ValueError in call mode."""
+        with pytest.raises(ValueError, match="Invalid phone number format"):
+            NotificationConfig(
+                mode="call",
+                target="+123456"
+            )
+
+    def test_invalid_phone_number_too_long(self):
+        """Test that phone number with too many digits raises ValueError in call mode."""
+        with pytest.raises(ValueError, match="Invalid phone number format"):
+            NotificationConfig(
+                mode="call",
+                target="+1234567890123456"
+            )
+
+    def test_invalid_phone_number_contains_letters(self):
+        """Test that phone number with letters raises ValueError in call mode."""
+        with pytest.raises(ValueError, match="Invalid phone number format"):
+            NotificationConfig(
+                mode="call",
+                target="+12345ABC90"
+            )
+
+    def test_tg_mode_accepts_directory_path(self):
+        """Test that tg mode accepts directory path (not phone number)."""
+        config = NotificationConfig(
+            mode="tg",
+            target="/tmp/test"
+        )
+
+        assert config.mode == "tg"
+        assert config.target == "/tmp/test"
