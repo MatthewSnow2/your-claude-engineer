@@ -1,0 +1,37 @@
+{
+  "project_id": "2eb8731d-2922-493d-8650-b65811e5949b",
+  "project_name": "LLM Citation Checker",
+  "project_slug": "a769b714663e",
+  "team_id": "488a02b5-c546-4242-95fb-bf6caf038fa1",
+  "team_key": "M2A",
+  "team_name": "M2AI_Workspace",
+  "total_issues": 3,
+  "issues": [
+    {
+      "id": "pending_api_recovery",
+      "identifier": "M2A-?",
+      "title": "Load Knowledge Base and Lookup Facts",
+      "priority": 2,
+      "status": "pending_creation"
+    },
+    {
+      "id": "pending_api_recovery",
+      "identifier": "M2A-?",
+      "title": "Add Citations to Verified Statements",
+      "priority": 2,
+      "status": "pending_creation"
+    },
+    {
+      "id": "pending_api_recovery",
+      "identifier": "M2A-?",
+      "title": "Generate Unverified Statements Report",
+      "priority": 2,
+      "status": "pending_creation"
+    }
+  ],
+  "meta_issue_id": "pending_creation",
+  "meta_issue_identifier": "M2A-?",
+  "created_at": "2026-03-28T05:01:27.387Z",
+  "project_url": "https://linear.app/m2ai-workspace/project/llm-citation-checker-a769b714663e",
+  "notes": "Project created successfully. Issue creation blocked by Cloudflare security. Retry issue creation when service recovers."
+}

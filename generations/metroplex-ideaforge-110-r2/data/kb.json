@@ -1,0 +1,12 @@
+[
+  {"fact": "Paris is the capital of France", "source": "Wikipedia"},
+  {"fact": "The Eiffel Tower is in Paris", "source": "Wikipedia"},
+  {"fact": "The speed of light is approximately 299,792 kilometers per second", "source": "Physics Today"},
+  {"fact": "Water boils at 100 degrees Celsius at sea level", "source": "Chemistry Handbook"},
+  {"fact": "The Earth orbits the Sun", "source": "NASA"},
+  {"fact": "DNA stands for deoxyribonucleic acid", "source": "National Institutes of Health"},
+  {"fact": "The Great Wall of China is visible from space", "source": "National Geographic"},
+  {"fact": "Python was created by Guido van Rossum", "source": "Python.org"},
+  {"fact": "The human body has 206 bones", "source": "Gray's Anatomy"},
+  {"fact": "Mount Everest is the tallest mountain on Earth", "source": "National Geographic"}
+]
