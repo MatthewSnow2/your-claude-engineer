@@ -1,3 +1,4 @@
+import re
 import sys
 import typer
 
@@ -31,9 +32,27 @@ def lookup():
 @app.command()
 def cite():
     """
-    Scan text and add citation markers (not implemented yet).
+    Read text from stdin and add citations to verified statements.
     """
-    typer.echo("Not implemented yet.")
+    text = sys.stdin.read().strip()
+    if not text:
+        typer.echo("Error: No input provided", err=True)
+        raise typer.Exit(code=1)
+
+    facts = load_kb()
+
+    # Split into sentences
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+
+    result_parts = []
+    for sentence in sentences:
+        match = find_match(sentence, facts)
+        if match:
+            result_parts.append(f"{sentence} [Source: {match.source}]")
+        else:
+            result_parts.append(sentence)
+
+    typer.echo(" ".join(result_parts))
 
 
 @app.command()

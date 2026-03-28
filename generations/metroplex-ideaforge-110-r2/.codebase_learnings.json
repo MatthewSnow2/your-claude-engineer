@@ -1,0 +1,25 @@
+{
+  "codebase_patterns": {
+    "framework": "Python 3.11+ with typer CLI and pydantic data models",
+    "file_structure": "llm_citation_checker/ package with modules: kb.py (loading), matcher.py (matching), models.py (pydantic), typer_cli.py (CLI), reporter.py (reports), main.py (exports)",
+    "data_directory": "data/kb.json - knowledge base with fact-source pairs",
+    "entry_point": "python -m llm_citation_checker <command> - reads from stdin",
+    "kb_path_resolution": "1) LCC_KB_PATH env var, 2) relative to package parent dir, 3) CWD/data/kb.json"
+  },
+  "common_mistakes_to_avoid": [
+    "KB path: use Path(__file__).parent.parent for package-relative paths",
+    "CLI error handling: wrap operations in try-except at the CLI boundary",
+    "File encoding: always specify encoding='utf-8' when opening files",
+    "Empty input: check for empty stdin before processing",
+    "Sentence splitting regex: use r'(?<=[.!?])\\s+' as specified in app_spec.txt"
+  ],
+  "review_findings_session_1": {
+    "severity": "WARN",
+    "key_issues": [
+      "Missing error handling in CLI commands (HIGH)",
+      "No input size limits on stdin.read() (MEDIUM)",
+      "LCC_KB_PATH env var not sanitized for path traversal (MEDIUM)",
+      "No explicit encoding on file open (LOW)"
+    ]
+  }
+}
